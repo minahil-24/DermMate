@@ -198,37 +198,6 @@ npm run preview
 
 Built files located in /dist
 
-📁 Project Structure
-src/
- ├── assets/
- ├── components/
- │   ├── common/
- │   ├── layout/
- │   ├── charts/
- │   └── ui/
- ├── pages/
- │   ├── auth/
- │   ├── patient/
- │   ├── dermatologist/
- │   ├── admin/
- │   └── system/
- ├── routes/
- ├── mock-data/
- ├── store/
- ├── utils/
- ├── hooks/
- ├── styles/
- └── App.jsx
-
-Full stack architecture:
-
-/yolo_system
-├── /backend          # Python FastAPI (AI Inference & Auth Logic)
-├── /backend_node     # Node.js Middleware (Multer Storage & Proxy)
-│   └── /uploads      # Persistent image storage (<username>/<timestamp>_<file>)
-├── /frontend_react   # React Frontend (Vite)
-└── README.md
-🔐 Demo Credentials
 
 Patient: patient@example.com (any password)
 
