@@ -1,4 +1,4 @@
-🌿 DermMate - AI Dermatology Platform Frontend & Full Stack
+DermMate - AI Dermatology Platform Frontend & Full Stack
 
 DermMate v1.0 is an AI-powered dermatology platform designed to streamline dermatological workflows, improve patient care, and integrate intelligent clinical automation. The platform provides role-based access for patients, dermatologists, and administrators, supporting features such as AI-assisted image analysis, structured case management, appointment scheduling, and notification systems.
 
@@ -197,13 +197,6 @@ npm run build
 npm run preview
 
 Built files located in /dist
-
-
-Patient: patient@example.com (any password)
-
-Dermatologist: dermatologist@example.com (any password)
-
-Admin: admin@example.com (any password)
 
 🎨 UX & Design
 
