@@ -1,0 +1,47 @@
+export const mockClinics = [
+  {
+    id: '1',
+    name: 'Advanced Dermatology Center',
+    address: '123 Medical Plaza, New York, NY 10001',
+    phone: '+1234567800',
+    distance: '2.5 km',
+    rating: 4.8,
+    specialties: ['Hair Disorders', 'Skin Conditions', 'Cosmetic Dermatology'],
+    hours: {
+      weekdays: '9:00 AM - 6:00 PM',
+      saturday: '9:00 AM - 2:00 PM',
+      sunday: 'Closed',
+    },
+    image: 'https://images.unsplash.com/photo-1551601651-2a8555f1a136?w=600',
+  },
+  {
+    id: '2',
+    name: 'City Skin & Hair Clinic',
+    address: '456 Health Center, Los Angeles, CA 90001',
+    phone: '+1234567801',
+    distance: '5.1 km',
+    rating: 4.6,
+    specialties: ['Acne Treatment', 'Hair Restoration', 'Nail Disorders'],
+    hours: {
+      weekdays: '8:00 AM - 7:00 PM',
+      saturday: '10:00 AM - 4:00 PM',
+      sunday: 'Closed',
+    },
+    image: 'https://images.unsplash.com/photo-1551601651-2a8555f1a136?w=600',
+  },
+  {
+    id: '3',
+    name: 'Elite Dermatology Group',
+    address: '789 Clinic Street, Chicago, IL 60601',
+    phone: '+1234567802',
+    distance: '8.3 km',
+    rating: 4.9,
+    specialties: ['Dermatopathology', 'Pediatric Dermatology', 'Surgical Dermatology'],
+    hours: {
+      weekdays: '8:00 AM - 5:00 PM',
+      saturday: 'Closed',
+      sunday: 'Closed',
+    },
+    image: 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=600',
+  },
+]
