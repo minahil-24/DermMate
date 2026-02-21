@@ -1,0 +1,50 @@
+export const mockAppointment = [
+  {
+    id: 'apt-1',
+    requestDate: '2026-01-10T10:00:00',
+    status: 'pending',
+    patient: {
+      name: 'Nadeem',
+      age: 30,
+      phone: '+1234567890',
+      email: 'john@example.com',
+      address: '123 Main St, City, State',
+      profilePicture: 'https://randomuser.me/api/portraits/men/32.jpg',
+    },
+    problem: 'Hair loss',
+    symptoms: ['Hair thinning', 'Itchy scalp'],
+    questions: ['Is this permanent?', 'What treatment do you recommend?'],
+  },
+  {
+    id: 'apt-2',
+    requestDate: '2026-01-11T15:30:00',
+    status: 'pending',
+    patient: {
+      name: 'Alisha',
+      age: 25,
+      phone: '+9876543210',
+      email: 'jane@example.com',
+      address: '456 Elm St, City, State',
+      profilePicture: 'https://randomuser.me/api/portraits/women/45.jpg',
+    },
+    problem: 'Skin rash',
+    symptoms: ['Redness', 'Itching'],
+    questions: ['Is this contagious?', 'Do I need medication?'],
+  },
+  {
+    id: 'apt-3',
+    requestDate: '2026-01-12T09:00:00',
+    status: 'confirmed',
+    patient: {
+      name: 'Ali Khan',
+      age: 28,
+      phone: '+923001234567',
+      email: 'ali.khan@example.com',
+      address: '789 Maple St, City, State',
+      profilePicture: 'https://randomuser.me/api/portraits/men/56.jpg',
+    },
+    problem: 'Acne',
+    symptoms: ['Pimples', 'Oily skin'],
+    questions: ['Which cream is safe?', 'Can I use home remedies?'],
+  }
+]
