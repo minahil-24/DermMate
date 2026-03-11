@@ -179,14 +179,50 @@ const Onboarding = () => {
             const fullUrl = `${apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl}/api/auth/profile`;
             console.log('Request URL:', fullUrl);
 
-            const response = await fetch(fullUrl, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify(formData),
-            });
+            const isDoctor = user?.role === 'dermatologist';
+            let response;
+
+            if (isDoctor) {
+                // For doctors, we update auth profile AND create/update DermatologistProfile
+                // First update auth profile
+                await fetch(fullUrl, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(formData),
+                });
+
+                // Then create/update Specialist Profile
+                const specialistUrl = `${apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl}/api/dermatologists/profile`;
+                response = await fetch(specialistUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        userId: user.id,
+                        fullName: user.name,
+                        specialty: formData.specialty,
+                        yearsOfExperience: formData.experience,
+                        clinicName: formData.clinicName,
+                        clinicAddress: formData.location,
+                        city: formData.location.split(',')[0].trim(),
+                        phone: formData.phoneNumber
+                    }),
+                });
+            } else {
+                response = await fetch(fullUrl, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(formData),
+                });
+            }
 
             console.log('Response status:', response.status);
 
