@@ -1,61 +1,48 @@
 import { useState, useEffect } from 'react'
-import { Upload, FileText, CheckCircle, Clock, XCircle, Loader2 } from 'lucide-react'
+import { Upload, FileText, CheckCircle, XCircle, Loader2 } from 'lucide-react'
 import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
 import Breadcrumbs from '../../components/common/Breadcrumbs'
 import { useToastStore } from '../../store/toastStore'
 import { useAuthStore } from '../../store/authStore'
-import { CERTIFICATION_STATUS } from '../../utils/constants'
 import axios from 'axios'
 
 const CertificationUpload = () => {
     const addToast = useToastStore((state) => state.addToast)
-    const { user, token } = useAuthStore()
-    const [profile, setProfile] = useState(null)
+    const { user, token, updateUser } = useAuthStore()
     const [loading, setLoading] = useState(true)
     const [uploading, setUploading] = useState(false)
-    const [certificates, setCertificates] = useState([])
 
     const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000'
 
-    useEffect(() => {
-        const fetchProfile = async () => {
-            try {
-                setLoading(true)
-                const response = await axios.get(`${apiUrl}/api/dermatologists/search?name=${user.name}`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                })
-                const foundProfile = response.data.find(p => p.userId._id === user.id || p.userId === user.id)
-                if (foundProfile) {
-                    setProfile(foundProfile)
-                    if (foundProfile.certifications) {
-                        setCertificates(foundProfile.certifications.map((path, index) => ({
-                            id: index,
-                            name: path.split(/[\\/]/).pop(),
-                            path: path,
-                            status: foundProfile.verified ? CERTIFICATION_STATUS.APPROVED : CERTIFICATION_STATUS.PENDING
-                        })))
-                    }
-                }
-            } catch (error) {
-                console.error("Error fetching profile for certifications:", error)
-            } finally {
-                setLoading(false)
-            }
+    const fetchLatestProfile = async () => {
+        try {
+            setLoading(true)
+            const response = await axios.get(`${apiUrl}/api/auth/me`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
+            updateUser(response.data)
+        } catch (error) {
+            console.error("Error fetching profile:", error)
+        } finally {
+            setLoading(false)
         }
-        fetchProfile()
-    }, [user, token, apiUrl])
+    }
+
+    useEffect(() => {
+        fetchLatestProfile()
+    }, [])
 
     const handleFileUpload = async (e) => {
         const file = e.target.files[0]
-        if (!file || !profile) return
+        if (!file) return
 
         try {
             setUploading(true)
             const formData = new FormData()
             formData.append('certifications', file)
 
-            const response = await axios.put(`${apiUrl}/api/dermatologists/${profile._id}`, formData, {
+            const response = await axios.put(`${apiUrl}/api/auth/profile`, formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data',
                     'Authorization': `Bearer ${token}`
@@ -63,19 +50,11 @@ const CertificationUpload = () => {
             })
 
             if (response.status === 200) {
-                const updatedProfile = response.data
-                setProfile(updatedProfile)
-                setCertificates(updatedProfile.certifications.map((path, index) => ({
-                    id: index,
-                    name: path.split(/[\\/]/).pop(),
-                    path: path,
-                    status: updatedProfile.verified ? CERTIFICATION_STATUS.APPROVED : CERTIFICATION_STATUS.PENDING
-                })))
-
+                updateUser(response.data.user)
                 addToast({
                     type: 'success',
                     title: 'Uploaded',
-                    message: 'Certificate uploaded and sent for verification',
+                    message: 'Certification added successfully',
                 })
             }
         } catch (error) {
@@ -89,100 +68,95 @@ const CertificationUpload = () => {
         }
     }
 
-    const removeCertificate = async (path) => {
+    const removeCertificate = async (index) => {
+        if (!window.confirm("Are you sure you want to remove this certificate? It will be deleted from the server.")) return;
+
         try {
-            const updatedPaths = profile.certifications.filter(p => p !== path)
-            const response = await axios.put(`${apiUrl}/api/dermatologists/${profile._id}`, {
-                certifications: updatedPaths
-            }, {
+            const response = await axios.delete(`${apiUrl}/api/auth/certifications/${index}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             })
 
             if (response.status === 200) {
-                setProfile(response.data)
-                setCertificates(response.data.certifications.map((p, index) => ({
-                    id: index,
-                    name: p.split(/[\\/]/).pop(),
-                    path: p,
-                    status: response.data.verified ? CERTIFICATION_STATUS.APPROVED : CERTIFICATION_STATUS.PENDING
-                })))
-                addToast({ type: 'success', title: 'Removed', message: 'Certificate removed' })
+                updateUser(response.data.user)
+                addToast({ type: 'success', title: 'Removed', message: 'Certificate deleted from server' })
             }
         } catch (error) {
             addToast({ type: 'error', title: 'Error', message: 'Failed to remove certificate' })
         }
     }
 
-    const getStatusStyle = (status) => {
-        switch (status) {
-            case CERTIFICATION_STATUS.APPROVED:
-                return 'bg-emerald-100 text-emerald-700'
-            case CERTIFICATION_STATUS.PENDING:
-                return 'bg-yellow-100 text-yellow-700'
-            case CERTIFICATION_STATUS.REJECTED:
-                return 'bg-red-100 text-red-700'
-            default:
-                return 'bg-gray-100 text-gray-700'
-        }
-    }
-
     return (
         <div className="p-6 max-w-4xl mx-auto">
-            <Breadcrumbs items={[{ label: 'Certifications' }]} />
+            <Breadcrumbs items={[{ label: 'Dashboard', path: '/dashboard/dermatologist' }, { label: 'My Certifications' }]} />
 
             <div className="mb-8">
-                <h1 className="text-3xl font-bold text-gray-900 mb-2">My Certifications</h1>
-                <p className="text-gray-600">Upload and manage your medical licenses and degrees</p>
+                <h1 className="text-3xl font-black text-gray-900 mb-2">My Certifications</h1>
+                <p className="text-gray-600 font-medium italic">Upload and manage your medical licenses and degrees to build trust with patients.</p>
             </div>
 
-            <Card>
+            <Card className="p-8 border-none ring-1 ring-slate-100 shadow-xl rounded-3xl">
                 {loading ? (
-                    <div className="flex justify-center py-10">
-                        <Loader2 className="animate-spin text-emerald-500 w-10 h-10" />
+                    <div className="flex flex-col items-center justify-center py-20">
+                        <Loader2 className="animate-spin text-emerald-500 w-12 h-12 mb-4" />
+                        <p className="text-gray-500 font-medium italic">Loading your credentials...</p>
                     </div>
                 ) : (
                     <>
-                        {/* Uploaded Certificates */}
-                        <div className="space-y-4 mb-8">
-                            {certificates.map((cert) => (
-                                <div
-                                    key={cert.id}
-                                    className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl border hover:shadow-sm transition"
-                                >
-                                    <FileText className="w-10 h-10 text-emerald-600" />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+                            {user?.certifications && user.certifications.length > 0 ? (
+                                user.certifications.map((path, index) => (
+                                    <div
+                                        key={index}
+                                        className="flex items-center gap-4 p-4 bg-emerald-50/30 rounded-2xl border border-emerald-100 hover:shadow-md transition group"
+                                    >
+                                        <div className="w-12 h-12 bg-white rounded-xl shadow-sm flex items-center justify-center shrink-0">
+                                            <FileText className="w-6 h-6 text-emerald-600" />
+                                        </div>
 
-                                    <div className="flex-1">
-                                        <p className="font-semibold text-gray-900">{cert.name}</p>
-                                        <a
-                                            href={`${apiUrl}/${cert.path.replace(/\\/g, '/')}`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="text-xs text-emerald-600 hover:underline"
-                                        >
-                                            View Document
-                                        </a>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="font-bold text-gray-900 truncate">Certification #{index + 1}</p>
+                                            <a
+                                                href={`${apiUrl}/${path.replace(/\\/g, '/')}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-xs text-emerald-600 font-bold hover:underline"
+                                            >
+                                                View Document
+                                            </a>
+                                        </div>
+
+                                        <div className="flex flex-col items-end gap-2">
+                                            {user?.isPendingVerification ? (
+                                                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-amber-100 text-amber-700 animate-pulse">
+                                                    PENDING REVIEW
+                                                </span>
+                                            ) : user?.isDoctorVerified ? (
+                                                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-emerald-100 text-emerald-700">
+                                                    VERIFIED
+                                                </span>
+                                            ) : (
+                                                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-gray-100 text-gray-400">
+                                                    UNVERIFIED
+                                                </span>
+                                            )}
+                                            <button
+                                                onClick={() => removeCertificate(index)}
+                                                className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-white rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                                                title="Delete permanently"
+                                            >
+                                                <XCircle size={18} />
+                                            </button>
+                                        </div>
                                     </div>
-
-                                    <span
-                                        className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusStyle(
-                                            cert.status
-                                        )}`}
-                                    >
-                                        {cert.status}
-                                    </span>
-
-                                    <button
-                                        onClick={() => removeCertificate(cert.path)}
-                                        className="text-gray-400 hover:text-red-500"
-                                    >
-                                        <XCircle size={20} />
-                                    </button>
+                                ))
+                            ) : (
+                                <div className="md:col-span-2 py-10 text-center text-gray-400 bg-gray-50 rounded-2xl border-2 border-dashed">
+                                    No certifications uploaded yet.
                                 </div>
-                            ))}
+                            )}
                         </div>
 
-                        {/* Upload More */}
-                        <label className="block">
+                        <label className="block w-full">
                             <input
                                 type="file"
                                 accept=".pdf,.jpg,.jpeg,.png"
@@ -190,23 +164,31 @@ const CertificationUpload = () => {
                                 disabled={uploading}
                                 className="hidden"
                             />
-                            <div className="border-2 border-dashed border-gray-300 rounded-xl p-10 text-center hover:border-emerald-400 transition-colors cursor-pointer">
+                            <div className="border-2 border-dashed border-emerald-200 bg-emerald-50/10 rounded-3xl p-10 text-center hover:border-emerald-400 hover:bg-emerald-50/20 transition-all cursor-pointer group">
                                 {uploading ? (
-                                    <Loader2 className="w-12 h-12 text-emerald-500 mx-auto mb-4 animate-spin" />
+                                    <Loader2 className="w-14 h-14 text-emerald-500 mx-auto mb-4 animate-spin" />
                                 ) : (
-                                    <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                                    <Upload className="w-14 h-14 text-emerald-300 group-hover:text-emerald-500 mx-auto mb-4 transition-colors" />
                                 )}
-                                <p className="text-sm text-gray-600 mb-1">
-                                    {uploading ? 'Uploading...' : 'Click to upload another certificate'}
+                                <p className="text-lg font-bold text-gray-900 mb-1">
+                                    {uploading ? 'Finalizing Upload...' : 'Add New Certificate'}
                                 </p>
-                                <p className="text-xs text-gray-500">
-                                    PDF, JPG, PNG (Max 5MB)
+                                <p className="text-sm text-gray-500 font-medium italic">
+                                    {uploading ? 'Storing on secure server...' : 'PDF, JPG, or PNG (Max 5MB)'}
                                 </p>
                             </div>
                         </label>
                     </>
                 )}
             </Card>
+
+            <div className="mt-8 p-6 bg-blue-50/50 rounded-3xl border border-blue-100 flex items-start gap-4">
+               <CheckCircle className="w-6 h-6 text-blue-500 shrink-0 mt-1" />
+               <div>
+                   <h3 className="font-bold text-blue-900">Verification Process</h3>
+                   <p className="text-sm text-blue-700 font-medium">Once uploaded, our medical board (Admin) will review your documents. After approval, a verification badge will appear on your public profile, increasing patient trust and appointment requests.</p>
+               </div>
+            </div>
         </div>
     )
 }

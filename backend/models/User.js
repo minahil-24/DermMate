@@ -1,42 +1,56 @@
 const mongoose = require('mongoose')
 
 const userSchema = new mongoose.Schema({
-  name: String,
-  email: { type: String, unique: true },
-  password: String,
+  name: { type: String, required: true },
+  email: { type: String, unique: true, required: true },
+  password: { type: String, required: true },
   role: {
     type: String,
     enum: ['patient', 'dermatologist', 'admin'],
     default: 'patient'
   },
 
-  // Dermatologist extra fields
+  // Common Profile Fields
+  phoneNumber: String,
+  location: String,
+  gender: { type: String, enum: ['male', 'female', 'other'], default: 'male' },
+  age: Number,
+  profilePhoto: String, // URL/Path to uploaded photo
+
+  // Dermatologist Specific Fields
   degree: String,
   specialty: String,
   experience: Number,
-  gender: { type: String, enum: ['male', 'female', 'other'] },
-  // Onboarding & Profile Info
-  age: Number,
-  phoneNumber: String,
   clinicName: String,
-  location: String,
-  onboardingCompleted: {
+  city: String,
+  bio: String,
+  consultationFee: Number,
+  availability: String,
+  certifications: { type: [String], default: [] }, // Array of Paths to uploaded certificates
+  isDoctorVerified: {
     type: Boolean,
-    default: false,
+    default: false
+  },
+  isPendingVerification: {
+    type: Boolean,
+    default: false
   },
 
-  certificate: String,
-  // Email Verification
+  // Verification & Status
   isVerified: {
     type: Boolean,
-    default: false,
+    default: false
   },
+  onboardingCompleted: {
+    type: Boolean,
+    default: false
+  },
+
+  // Auth Tokens
   verificationToken: String,
   verificationTokenExpire: Date,
-
-  // Password Reset
   resetPasswordToken: String,
   resetPasswordExpire: Date,
-})
+}, { timestamps: true })
 
 module.exports = mongoose.model('User', userSchema)

@@ -1,46 +1,35 @@
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
+const multer = require('multer')
+const path = require('path')
+const fs = require('fs')
 
-// Ensure directories exist
-const uploadDirs = ['uploads/profiles', 'uploads/certifications'];
-uploadDirs.forEach(dir => {
-    if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-    }
-});
-
+// Multer Storage Configuration
 const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        if (file.fieldname === 'profilePhoto') {
-            cb(null, 'uploads/profiles');
-        } else if (file.fieldname === 'certifications') {
-            cb(null, 'uploads/certifications');
-        } else {
-            cb(new Error('Invalid field name'), false);
-        }
-    },
-    filename: function (req, file, cb) {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+  destination: (req, file, cb) => {
+    let dir = 'uploads/'
+    if (file.fieldname === 'profilePhoto') dir += 'profiles/'
+    if (file.fieldname === 'certifications') dir += 'certificates/'
+    
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true })
     }
-});
+    cb(null, dir)
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname))
+  }
+})
 
-const fileFilter = (req, file, cb) => {
-    const allowedTypes = ['image/jpeg', 'image/png', 'application/pdf'];
-    if (allowedTypes.includes(file.mimetype)) {
-        cb(null, true);
+const upload = multer({ 
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/') || file.mimetype === 'application/pdf') {
+      cb(null, true)
     } else {
-        cb(new Error('Invalid file type. Only jpg, png, and pdf are allowed.'), false);
+      cb(new Error('Only images and PDFs are allowed!'), false)
     }
-};
+  }
+})
 
-const upload = multer({
-    storage: storage,
-    fileFilter: fileFilter,
-    limits: {
-        fileSize: 5 * 1024 * 1024 // 5MB limit
-    }
-});
-
-module.exports = upload;
+module.exports = upload

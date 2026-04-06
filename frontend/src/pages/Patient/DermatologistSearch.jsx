@@ -11,258 +11,224 @@ import axios from 'axios'
 const cityFilters = ['All', 'Karachi', 'Lahore', 'Islamabad']
 
 const DermatologistSearch = () => {
-  const navigate = useNavigate()
-  const [dermatologists, setDermatologists] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+    const navigate = useNavigate()
+    const [dermatologists, setDermatologists] = useState([])
+    const [loading, setLoading] = useState(true)
+    const [error, setError] = useState(null)
 
-  const [searchTerm, setSearchTerm] = useState('')
-  const [filters, setFilters] = useState({
-    city: '',
-    specialty: '',
-    keyword: ''
-  })
-  const [showFilters, setShowFilters] = useState(false)
+    const [searchTerm, setSearchTerm] = useState('')
+    const [filters, setFilters] = useState({
+        city: '',
+        specialty: '',
+        keyword: ''
+    })
+    const [showFilters, setShowFilters] = useState(false)
 
-  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000'
+    const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000'
 
-  const fetchDermatologists = async (searchParams = {}) => {
-    try {
-      setLoading(true)
-      const params = new URLSearchParams()
-      if (searchParams.name) params.append('name', searchParams.name)
-      if (searchParams.city) params.append('city', searchParams.city)
-      if (searchParams.specialty) params.append('specialty', searchParams.specialty)
-      if (searchParams.keyword) params.append('keyword', searchParams.keyword)
-
-      const response = await axios.get(`${apiUrl}/api/dermatologists/search?${params.toString()}`)
-      setDermatologists(response.data)
-      setError(null)
-    } catch (err) {
-      setError('Failed to fetch dermatologists. Please try again.')
-      console.error(err)
-    } finally {
-      setLoading(false)
+    const fetchDermatologists = async () => {
+        try {
+            setLoading(true)
+            const response = await axios.get(`${apiUrl}/api/auth/doctors`)
+            setDermatologists(response.data)
+            setError(null)
+        } catch (err) {
+            setError('Failed to fetch experts. Please check your connection.')
+        } finally {
+            setLoading(false)
+        }
     }
-  }
 
-  useEffect(() => {
-    fetchDermatologists()
-  }, [])
+    useEffect(() => {
+        fetchDermatologists()
+    }, [])
 
-  const debouncedSearch = useCallback(
-    debounce((term) => {
-      fetchDermatologists({ name: term, ...filters })
-    }, 500),
-    [filters]
-  )
+    const filteredDoctors = dermatologists.filter(doctor => {
+        const matchesSearch = !searchTerm || doctor.name.toLowerCase().includes(searchTerm.toLowerCase())
+        const matchesCity = !filters.city || (doctor.location?.toLowerCase().includes(filters.city.toLowerCase()) || doctor.city?.toLowerCase().includes(filters.city.toLowerCase()))
+        const matchesSpecialty = !filters.specialty || doctor.specialty?.toLowerCase().includes(filters.specialty.toLowerCase())
+        const matchesKeyword = !filters.keyword || 
+            (doctor.bio?.toLowerCase().includes(filters.keyword.toLowerCase()) || 
+             doctor.clinicName?.toLowerCase().includes(filters.keyword.toLowerCase()))
+        
+        return matchesSearch && matchesCity && matchesSpecialty && matchesKeyword
+    })
 
-  const handleSearch = (e) => {
-    const value = e.target.value
-    setSearchTerm(value)
-    debouncedSearch(value)
-  }
+    const getAvatar = (doc) => {
+        if (doc.profilePhoto) return `${apiUrl}/${doc.profilePhoto.replace(/\\/g, '/')}`
+        return doc.gender === 'female' ? '/imgs/default-female.png' : '/imgs/default-male.png'
+    }
 
-  const applyFilters = () => {
-    fetchDermatologists({ name: searchTerm, ...filters })
-    setShowFilters(false)
-  }
+    return (
+        <div className="min-h-screen bg-[#FDFDFD] p-6 md:p-12 text-slate-900">
+            <Breadcrumbs items={[{ label: 'Dashboard' }, { label: 'Find Specialist' }]} />
 
-  const clearFilters = () => {
-    const cleared = { city: '', specialty: '', keyword: '' }
-    setFilters(cleared)
-    fetchDermatologists({ name: searchTerm, ...cleared })
-  }
-
-  return (
-    <div className="min-h-screen bg-[#FDFDFD] p-6 md:p-12 text-slate-900">
-      <Breadcrumbs items={[{ label: 'Dashboard' }, { label: 'Find Specialist' }]} />
-
-      {/* 🔍 Search Bar at Top */}
-      <Card className="mt-6 mb-4 border-2 border-slate-200 rounded-2xl p-2 bg-slate-100">
-        <div className="flex flex-col md:flex-row gap-4 mb-8">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-            <input
-              type="text"
-              placeholder="Search by name or keyword..."
-              onChange={handleSearch}
-              className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition"
-            />
-          </div>
-          <Button
-            variant={showFilters ? 'primary' : 'outline'}
-            onClick={() => setShowFilters(!showFilters)}
-            className="flex items-center gap-2"
-          >
-            <Filter className="w-4 h-4" /> Filters
-            {(filters.city || filters.specialty || filters.keyword) && (
-              <span className="bg-emerald-100 text-emerald-600 text-[10px] px-1.5 py-0.5 rounded-full ring-1 ring-emerald-500">Active</span>
-            )}
-          </Button>
-        </div>
-
-        {showFilters && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm mb-8 overflow-hidden"
-          >
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-gray-700">Location (City)</label>
-                <input
-                  type="text"
-                  value={filters.city}
-                  onChange={(e) => setFilters({ ...filters, city: e.target.value })}
-                  placeholder="e.g. New York"
-                  className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-gray-700">Specialty</label>
-                <select
-                  value={filters.specialty}
-                  onChange={(e) => setFilters({ ...filters, specialty: e.target.value })}
-                  className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500"
-                >
-                  <option value="">All Specialties</option>
-                  <option value="Dermatologist">General Dermatology</option>
-                  <option value="Cosmetic Dermatologist">Cosmetic</option>
-                  <option value="Pediatric Dermatologist">Pediatric</option>
-                  <option value="Dermatopathologist">Dermatopathology</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-gray-700">Keywords (Bio/Clinic)</label>
-                <input
-                  type="text"
-                  value={filters.keyword}
-                  onChange={(e) => setFilters({ ...filters, keyword: e.target.value })}
-                  placeholder="e.g. Laser, MBBS, Clinic"
-                  className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500"
-                />
-              </div>
+            <div className="mt-8 mb-12">
+                <h1 className="text-4xl font-black text-slate-900 mb-2">Find a Specialist</h1>
+                <p className="text-slate-500 font-medium">Connect with verified dermatology experts for professional care.</p>
             </div>
-            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-50">
-              <Button variant="ghost" size="sm" onClick={clearFilters}>Reset</Button>
-              <Button size="sm" onClick={applyFilters}>Apply Filters</Button>
+
+            <Card className="mb-8 border-none shadow-xl shadow-slate-100 rounded-3xl p-4 bg-white ring-1 ring-slate-100">
+                <div className="flex flex-col md:flex-row gap-4">
+                    <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+                        <input
+                            type="text"
+                            placeholder="Search by name or clinic..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full pl-10 pr-4 py-3.5 rounded-2xl border-none bg-slate-50 focus:ring-2 focus:ring-emerald-500 outline-none transition font-medium"
+                        />
+                    </div>
+                    <Button
+                        variant={showFilters ? 'primary' : 'outline'}
+                        onClick={() => setShowFilters(!showFilters)}
+                        className="flex items-center gap-2 rounded-2xl px-6"
+                    >
+                        <Filter className="w-4 h-4" /> Filters
+                    </Button>
+                </div>
+
+                {showFilters && (
+                    <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="pt-6 mt-6 border-t border-slate-50">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-tighter">Location</label>
+                                <input 
+                                    type="text" 
+                                    value={filters.city} 
+                                    onChange={(e) => setFilters({...filters, city: e.target.value})}
+                                    placeholder="City name..."
+                                    className="w-full px-4 py-2.5 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-tighter">Specialty</label>
+                                <select 
+                                    value={filters.specialty} 
+                                    onChange={(e) => setFilters({...filters, specialty: e.target.value})}
+                                    className="w-full px-4 py-2.5 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 appearance-none"
+                                >
+                                    <option value="">All Specialties</option>
+                                    <option value="Dermatologist">General Dermatology</option>
+                                    <option value="Cosmetic">Cosmetic</option>
+                                    <option value="Pediatric">Pediatric</option>
+                                </select>
+                            </div>
+                            <div className="space-y-2 flex items-end">
+                                <Button variant="ghost" className="w-full" onClick={() => setFilters({city:'', specialty:'', keyword:''})}>Clear All</Button>
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+            </Card>
+
+            <div className="flex gap-3 mb-10 overflow-x-auto pb-2 scrollbar-none">
+                {cityFilters.map((city) => (
+                    <button
+                        key={city}
+                        onClick={() => setFilters({ ...filters, city: city === 'All' ? '' : city })}
+                        className={`px-6 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest border-2 shrink-0 transition-all ${
+                            (city === 'All' && filters.city === '') || filters.city === city
+                            ? 'bg-emerald-500 text-white border-emerald-500 shadow-lg shadow-emerald-200'
+                            : 'bg-white border-slate-200 text-slate-500 hover:border-emerald-200'
+                        }`}
+                    >
+                        {city}
+                    </button>
+                ))}
             </div>
-          </motion.div>
-        )}
-      </Card>
 
-      {/* City Filters */}
-      <div className="flex gap-3 mb-8 flex-wrap">
-        {cityFilters.map((city) => (
-          <button
-            key={city}
-            onClick={() => setFilters({ ...filters, city: city === 'All' ? '' : city })}
-            className={`px-5 py-2 rounded-full text-xs font-black uppercase tracking-widest border-2 transition-all ${filters.city === city || (city === 'All' && filters.city === '')
-              ? 'bg-emerald-500 text-white border-emerald-500'
-              : 'bg-white border-slate-200 text-slate-600'
-              }`}
-          >
-            {city}
-          </button>
-        ))}
-      </div>
-
-      {loading ? (
-        <div className="flex flex-col items-center justify-center py-20">
-          <Loader2 className="w-12 h-12 text-emerald-500 animate-spin mb-4" />
-          <p className="text-gray-500">Searching for experts...</p>
-        </div>
-      ) : error ? (
-        <div className="text-center py-20">
-          <p className="text-red-500 mb-4">{error}</p>
-          <Button variant="outline" onClick={() => fetchDermatologists()}>Try Again</Button>
-        </div>
-      ) : dermatologists.length === 0 ? (
-        <div className="text-center py-20 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-200">
-          <Search className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-900 font-bold text-xl">No specialists found</p>
-          <p className="text-gray-500">Try adjusting your filters or search term</p>
-          <Button variant="ghost" className="mt-4" onClick={clearFilters}>Clear all filters</Button>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {dermatologists.map((doctor, index) => {
-            const avatarUrl = doctor.profilePhoto
-              ? `${apiUrl}/${doctor.profilePhoto.replace(/\\/g, '/')}`
-              : `https://api.dicebear.com/7.x/avataaars/svg?seed=${doctor.fullName}`
-
-            return (
-              <motion.div
-                key={doctor._id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className="h-full"
-              >
-                <Card className="h-full hover:shadow-xl transition-all duration-300 group border-gray-100 flex flex-col">
-                  <div className="flex items-center gap-4 mb-4">
-                    <div className="relative">
-                      <img
-                        src={avatarUrl}
-                        alt={doctor.fullName}
-                        className="w-16 h-16 rounded-full border-2 border-emerald-500 shadow-sm object-cover"
-                      />
-                      <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 shadow-sm">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-500 fill-white" />
-                      </div>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-bold text-gray-900 group-hover:text-emerald-600 transition-colors truncate">
-                        {doctor.fullName}
-                      </h3>
-                      <p className="text-xs text-emerald-600 font-medium bg-emerald-50 px-2 py-0.5 rounded-full inline-block">
-                        {doctor.specialty}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2 mb-6 flex-grow">
-                    <div className="flex items-center text-xs text-gray-600 gap-2">
-                      <MapPin className="w-3 h-3 text-emerald-500" />
-                      <span className="truncate">{doctor.city}, {doctor.clinicName}</span>
-                    </div>
-                    <div className="flex items-center text-xs text-gray-600 gap-2">
-                      <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
-                      <span>{doctor.stats?.rating || '4.9'} • {doctor.yearsOfExperience} yrs exp.</span>
-                    </div>
-                    <div className="flex justify-between items-center mt-4">
-                      <p className="font-black text-sm text-gray-900">PKR {doctor.consultationFee || 'N/A'}</p>
-                      <span className="text-[10px] font-black uppercase bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full">
-                        {doctor.availability || 'Available'}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      className="flex-1 text-[10px] font-black uppercase tracking-widest border-2"
-                      onClick={() => navigate(`/patient/dermatologist/${doctor._id}`)}
-                    >
-                      Profile
-                    </Button>
-                    <Button
-                      className="flex-1 text-[10px] font-black uppercase tracking-widest bg-slate-900 hover:bg-emerald-600"
-                      onClick={() => navigate(`/patient/appointment-booking`, { state: { doctorId: doctor._id } })}
-                    >
-                      <Calendar className="w-3 h-3 mr-1" />
-                      Book Now
-                    </Button>
-                  </div>
+            {loading ? (
+                <div className="flex flex-col items-center justify-center py-20">
+                    <Loader2 className="w-12 h-12 text-emerald-500 animate-spin mb-4" />
+                    <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Finding doctors...</p>
+                </div>
+            ) : filteredDoctors.length === 0 ? (
+                <Card className="text-center py-20 rounded-3xl border-2 border-dashed border-slate-100">
+                    <Search className="w-12 h-12 text-slate-200 mx-auto mb-4" />
+                    <p className="text-slate-900 font-black text-xl">No specialists match your search</p>
+                    <p className="text-slate-400 mt-1">Try expanding your filters or check back later.</p>
                 </Card>
-              </motion.div>
-            )
-          })}
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    {filteredDoctors.map((doctor, index) => (
+                        <motion.div
+                            key={doctor._id}
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: index * 0.05 }}
+                        >
+                            <Card className="h-full hover:shadow-2xl hover:shadow-emerald-100 transition-all duration-500 group border-none ring-1 ring-slate-100 rounded-3xl p-6 flex flex-col bg-white">
+                                <div className="flex items-center gap-5 mb-6">
+                                    <div className="relative">
+                                        <img
+                                            src={getAvatar(doctor)}
+                                            alt={doctor.name}
+                                            className="w-20 h-20 rounded-2xl border-4 border-white shadow-xl shadow-slate-200 object-cover group-hover:scale-105 transition-transform"
+                                        />
+                                        {doctor.isDoctorVerified && (
+                                            <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 shadow-md">
+                                                <CheckCircle2 className="w-5 h-5 text-blue-500 fill-white" />
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="flex-1">
+                                        <h3 className="font-black text-slate-900 group-hover:text-emerald-600 transition-colors text-lg leading-tight">
+                                            {doctor.name}
+                                        </h3>
+                                        <div className="text-[10px] font-black uppercase text-emerald-600 tracking-wider bg-emerald-50 px-2 py-0.5 rounded-lg inline-block mt-1">
+                                            {doctor.specialty || 'Generalist'}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-3 mb-8 flex-grow">
+                                    <div className="flex items-center text-xs font-bold text-slate-500 gap-2">
+                                        <MapPin className="w-4 h-4 text-emerald-500/50" />
+                                        <span className="truncate">{doctor.location || doctor.city || 'Pakistan'}</span>
+                                    </div>
+                                    <div className="flex items-center text-xs font-bold text-slate-500 gap-2">
+                                        <GraduationCap className="w-4 h-4 text-emerald-500/50" />
+                                        <span>{doctor.experience || '0'}+ Years Experience</span>
+                                    </div>
+                                    
+                                    <div className="flex justify-between items-center bg-slate-50 p-4 rounded-2xl mt-4">
+                                        <div>
+                                            <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Consultation</p>
+                                            <p className="font-black text-slate-900">PKR {doctor.consultationFee || '500'}</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Status</p>
+                                            <span className="text-[10px] font-black uppercase text-emerald-600 bg-emerald-100 px-2 py-1 rounded-lg">
+                                                {doctor.availability || 'Available'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="flex gap-3">
+                                    <Button
+                                        variant="outline"
+                                        className="flex-1 rounded-2xl border-2 font-black uppercase tracking-widest text-[10px] h-12"
+                                        onClick={() => navigate(`/patient/dermatologist/${doctor._id}`)}
+                                    >
+                                        Profile
+                                    </Button>
+                                    <Button
+                                        className="flex-1 rounded-2xl font-black uppercase tracking-widest text-[10px] bg-slate-900 hover:bg-emerald-600 h-12"
+                                        onClick={() => navigate(`/patient/appointment-booking`, { state: { doctorId: doctor._id } })}
+                                    >
+                                        Book Now
+                                    </Button>
+                                </div>
+                            </Card>
+                        </motion.div>
+                    ))}
+                </div>
+            )}
         </div>
-      )}
-    </div>
-  )
+    )
 }
 
 export default DermatologistSearch

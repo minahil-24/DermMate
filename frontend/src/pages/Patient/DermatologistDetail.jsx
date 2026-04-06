@@ -5,7 +5,7 @@ import {
     User, MapPin, Briefcase, Star, CheckCircle,
     FileText, Award, Building, Phone, Mail,
     Calendar, Shield, Loader2, Award as CertificateIcon,
-    ChevronLeft, MessageCircle, Clock, TrendingUp
+    ChevronLeft, MessageCircle, Clock, TrendingUp, ExternalLink
 } from 'lucide-react';
 import axios from 'axios';
 import Card from '../../components/ui/Card';
@@ -20,134 +20,122 @@ const DermatologistDetail = () => {
     const { token } = useAuthStore();
     const addToast = useToastStore((state) => state.addToast);
 
-    const [dermatologist, setDermatologist] = useState(null);
+    const [doctor, setDoctor] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
     const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
     useEffect(() => {
-        const fetchDermatologist = async () => {
+        const fetchDoctor = async () => {
             try {
                 setLoading(true);
-                const response = await axios.get(`${apiUrl}/api/dermatologists/${id}`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                setDermatologist(response.data);
+                const response = await axios.get(`${apiUrl}/api/auth/users/${id}`);
+                setDoctor(response.data);
             } catch (err) {
-                console.error('Error fetching dermatologist details:', err);
-                setError('Failed to load dermatologist details.');
+                console.error('Error fetching expert details:', err);
+                setError('Failed to load doctor profile.');
                 addToast({
                     type: 'error',
-                    title: 'Error',
-                    message: 'Could not fetch dermatologist information'
+                    title: 'Load Error',
+                    message: 'Could not fetch information'
                 });
             } finally {
                 setLoading(false);
             }
         };
 
-        fetchDermatologist();
-    }, [id, token, apiUrl, addToast]);
+        fetchDoctor();
+    }, [id, apiUrl, addToast]);
 
     if (loading) {
         return (
-            <div className="flex flex-col items-center justify-center min-h-[400px]">
-                <Loader2 className="w-12 h-12 text-emerald-500 animate-spin mb-4" />
-                <p className="text-gray-500 animate-pulse text-lg">Loading expert profile...</p>
+            <div className="flex flex-col items-center justify-center min-h-[500px]">
+                <Loader2 className="w-16 h-16 text-emerald-500 animate-spin mb-4" />
+                <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Loading expert profile...</p>
             </div>
         );
     }
 
-    if (error || !dermatologist) {
+    if (error || !doctor) {
         return (
-            <div className="text-center py-12">
-                <p className="text-red-500 mb-4 text-xl font-medium">{error || 'Dermatologist not found'}</p>
-                <Button onClick={() => navigate('/patient/dermatologists')} variant="outline">
-                    <ChevronLeft className="w-4 h-4 mr-2" />
-                    Back to Search
+            <div className="max-w-xl mx-auto text-center py-24 bg-white rounded-3xl shadow-xl mt-12 p-12">
+                <Shield className="w-20 h-20 text-slate-200 mx-auto mb-6" />
+                <h2 className="text-2xl font-black text-slate-900 mb-2">Expert Not Found</h2>
+                <p className="text-slate-500 mb-8 font-medium">The requested professional profile might have been moved or removed.</p>
+                <Button onClick={() => navigate('/patient/dermatologists')} className="bg-slate-900 rounded-2xl w-full h-14 font-black uppercase tracking-widest">
+                    <ChevronLeft className="w-4 h-4 mr-2" /> Back to Experts
                 </Button>
             </div>
         );
     }
 
-    const avatarUrl = dermatologist.profilePhoto
-        ? `${apiUrl}/${dermatologist.profilePhoto.replace(/\\/g, '/')}`
-        : `https://api.dicebear.com/7.x/avataaars/svg?seed=${dermatologist.fullName}`;
+    const avatarUrl = doctor.profilePhoto
+        ? `${apiUrl}/${doctor.profilePhoto.replace(/\\/g, '/')}`
+        : (doctor.gender === 'female' ? '/imgs/default-female.png' : '/imgs/default-male.png');
 
     return (
-        <div className="max-w-5xl mx-auto px-4 py-8">
+        <div className="max-w-7xl mx-auto px-4 py-12">
             <Breadcrumbs
                 items={[
-                    { label: 'Dermatologists', path: '/patient/dermatologists' },
-                    { label: dermatologist.fullName }
+                    { label: 'Specialists', path: '/patient/dermatologists' },
+                    { label: doctor.name }
                 ]}
             />
 
-            {/* Header Section */}
-            <div className="relative mb-8 pt-12 md:pt-0">
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="bg-white rounded-3xl shadow-xl overflow-hidden border border-emerald-50"
-                >
-                    <div className="h-40 bg-gradient-to-r from-emerald-500 to-teal-600 relative overflow-hidden">
-                        {/* Abstract background shapes */}
-                        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-20 -mt-20 blur-2xl"></div>
-                        <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full -ml-16 -mb-16 blur-xl"></div>
+            {/* Profile Hero */}
+            <div className="mt-8 mb-12">
+                <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="relative">
+                    <div className="h-64 bg-slate-900 rounded-t-[3rem] relative overflow-hidden">
+                        <div className="absolute inset-0 bg-gradient-to-tr from-emerald-900/50 via-slate-900/50 border-b border-white/10" />
+                        <div className="absolute -top-24 -right-24 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl" />
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg h-1 bg-white/5 blur-xl" />
                     </div>
 
-                    <div className="px-8 pb-8">
-                        <div className="relative flex flex-col md:flex-row items-end -mt-16 md:-mt-20 gap-6 mb-6">
+                    <div className="bg-white rounded-b-[3rem] px-8 pb-12 shadow-2xl shadow-slate-200 relative -mt-32 ring-1 ring-slate-100">
+                        <div className="flex flex-col md:flex-row items-end gap-8 pt-8">
                             <div className="relative group">
                                 <img
                                     src={avatarUrl}
-                                    alt={dermatologist.fullName}
-                                    className="w-32 h-32 md:w-40 md:h-40 rounded-3xl border-4 border-white shadow-2xl object-cover bg-white transform transition-transform group-hover:scale-[1.02]"
+                                    alt={doctor.name}
+                                    className="w-48 h-48 rounded-[2.5rem] border-8 border-white shadow-2xl object-cover"
                                 />
-                                {dermatologist.verified && (
-                                    <div className="absolute -bottom-2 -right-2 bg-emerald-500 text-white p-2 rounded-xl shadow-lg border-2 border-white ring-4 ring-emerald-50">
-                                        <CheckCircle className="w-5 h-5" />
+                                {doctor.isDoctorVerified && (
+                                    <div className="absolute -bottom-2 -right-2 bg-blue-500 text-white p-3 rounded-2xl shadow-xl ring-4 ring-white">
+                                        <CheckCircle className="w-6 h-6 fill-white text-blue-500" />
                                     </div>
                                 )}
                             </div>
 
-                            <div className="flex-1 text-center md:text-left pt-2">
-                                <div className="flex flex-wrap items-center gap-2 justify-center md:justify-start mb-1">
-                                    <h1 className="text-3xl font-bold text-gray-900 tracking-tight">{dermatologist.fullName}</h1>
-                                    {dermatologist.verified && (
-                                        <span className="bg-emerald-100 text-emerald-700 text-xs font-bold px-2 py-1 rounded-full uppercase tracking-wider flex items-center gap-1">
-                                            <Shield className="w-3 h-3" />
-                                            Verified Specialist
+                            <div className="flex-1 pb-4 text-center md:text-left">
+                                <div className="flex flex-wrap items-center gap-3 justify-center md:justify-start mb-2">
+                                    <h1 className="text-4xl font-black text-slate-900 tracking-tighter">{doctor.name}</h1>
+                                    {doctor.isDoctorVerified && (
+                                        <span className="bg-emerald-50 text-emerald-700 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest flex items-center gap-1 border border-emerald-100">
+                                            Verified Expert
                                         </span>
                                     )}
                                 </div>
-                                <p className="text-emerald-600 font-semibold text-lg flex items-center justify-center md:justify-start gap-2 mb-3">
-                                    <Briefcase className="w-5 h-5" />
-                                    {dermatologist.specialty || 'General Dermatology'}
+                                <p className="text-emerald-600 font-black text-xs uppercase tracking-widest flex items-center justify-center md:justify-start gap-2 mb-6">
+                                    <Briefcase className="w-4 h-4" /> {doctor.specialty || 'Dermatology Resident'}
                                 </p>
-                                <div className="flex flex-wrap justify-center md:justify-start gap-4 text-gray-600 text-sm">
-                                    <div className="flex items-center gap-1.5 bg-gray-50 px-3 py-1.5 rounded-full border border-gray-100">
-                                        <MapPin className="w-4 h-4 text-emerald-500" />
-                                        <span>{dermatologist.city || 'Not specified'}</span>
+                                
+                                <div className="flex flex-wrap justify-center md:justify-start gap-3">
+                                    <div className="flex items-center gap-2 bg-slate-50 px-4 py-2.5 rounded-2xl border border-slate-100 text-slate-600 font-bold text-xs uppercase tracking-tighter">
+                                        <MapPin className="w-4 h-4 text-emerald-500" /> {doctor.location || doctor.city || 'Karachi'}
                                     </div>
-                                    <div className="flex items-center gap-1.5 bg-gray-50 px-3 py-1.5 rounded-full border border-gray-100">
-                                        <Star className="w-4 h-4 text-emerald-500 fill-emerald-500" />
-                                        <span>{dermatologist.yearsOfExperience}+ Years Practice</span>
+                                    <div className="flex items-center gap-2 bg-slate-50 px-4 py-2.5 rounded-2xl border border-slate-100 text-slate-600 font-bold text-xs uppercase tracking-tighter">
+                                        <Clock className="w-4 h-4 text-emerald-500" /> {doctor.experience || '0'} Years Exp.
                                     </div>
-                                    <div className="flex items-center gap-1.5 bg-gray-50 px-3 py-1.5 rounded-full border border-gray-100 text-emerald-700 font-medium">
-                                        <Clock className="w-4 h-4" />
-                                        <span>Fee: ${dermatologist.consultationFee || '0'}</span>
+                                    <div className="flex items-center gap-2 bg-emerald-50 px-4 py-2.5 rounded-2xl border border-emerald-100 text-emerald-700 font-bold text-xs uppercase tracking-tighter">
+                                        Fee: PKR {doctor.consultationFee || '500'}
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="flex gap-3 pt-6 md:pt-0">
-                                <Button size="lg" className="rounded-2xl shadow-lg shadow-emerald-200" onClick={() => navigate('/patient/appointment-booking', { state: { doctorId: dermatologist._id } })}>
-                                    Book Consultation
-                                </Button>
-                                <Button variant="outline" size="lg" className="rounded-2xl border-emerald-200">
-                                    <MessageCircle className="w-5 h-5" />
+                            <div className="flex gap-3 pb-4">
+                                <Button size="lg" className="rounded-2xl px-12 bg-slate-900 shadow-xl shadow-slate-200 h-16 font-black uppercase tracking-widest text-xs" onClick={() => navigate('/patient/appointment-booking', { state: { doctorId: doctor._id } })}>
+                                    Secure Consultation
                                 </Button>
                             </div>
                         </div>
@@ -155,173 +143,164 @@ const DermatologistDetail = () => {
                 </motion.div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Left Column: Details */}
-                <div className="lg:col-span-2 space-y-8">
-
-                    {/* Bio Section */}
-                    <Card className="rounded-3xl border-none shadow-sm ring-1 ring-gray-100 p-8">
-                        <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-                            <User className="w-6 h-6 text-emerald-500" />
-                            About Dermatologist
+            {/* Content Details */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+                <div className="lg:col-span-2 space-y-10">
+                    <Card className="rounded-[2.5rem] border-none shadow-xl shadow-slate-100 ring-1 ring-slate-100 p-10">
+                        <h2 className="text-2xl font-black text-slate-900 mb-6 flex items-center gap-3">
+                            <User className="w-8 h-8 text-emerald-500" />
+                            Clinical Profile
                         </h2>
-                        <p className="text-gray-600 leading-relaxed whitespace-pre-line text-lg">
-                            {dermatologist.bio || "No professional bio provided yet."}
+                        <p className="text-slate-500 font-medium leading-relaxed text-lg italic whitespace-pre-wrap">
+                            {doctor.bio || "This specialist has not provided a detailed professional biography yet. Please contact the clinic for more information regarding their specific focus areas."}
                         </p>
 
-                        <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6 pt-8 border-t border-gray-50">
-                            <div className="flex items-start gap-4 p-4 rounded-2xl bg-emerald-50/30 border border-emerald-50">
-                                <div className="p-3 bg-white rounded-xl shadow-sm">
-                                    <Award className="w-6 h-6 text-emerald-600" />
-                                </div>
-                                <div>
-                                    <h4 className="font-bold text-gray-900 mb-0.5">Education</h4>
-                                    <p className="text-sm text-gray-600">{dermatologist.qualifications || 'Specialized in Advanced Dermatology'}</p>
-                                </div>
+                        <div className="mt-12 grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100">
+                                <h4 className="font-black text-slate-900 text-xs uppercase tracking-widest mb-3 flex items-center gap-2">
+                                    <Award className="w-4 h-4 text-emerald-500" /> Academic Credentials
+                                </h4>
+                                <p className="text-slate-600 font-bold">{doctor.degree || 'MBBS, Specialized in Dermatology'}</p>
                             </div>
-                            <div className="flex items-start gap-4 p-4 rounded-2xl bg-teal-50/30 border border-teal-50">
-                                <div className="p-3 bg-white rounded-xl shadow-sm">
-                                    <Building className="w-6 h-6 text-teal-600" />
-                                </div>
-                                <div>
-                                    <h4 className="font-bold text-gray-900 mb-0.5">Clinic Affiliation</h4>
-                                    <p className="text-sm text-gray-600">{dermatologist.clinicName || 'DermMate Partner Clinic'}</p>
-                                    <p className="text-xs text-gray-500 mt-1">{dermatologist.clinicAddress}</p>
-                                </div>
+                            <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100">
+                                <h4 className="font-black text-slate-900 text-xs uppercase tracking-widest mb-3 flex items-center gap-2">
+                                    <Building className="w-4 h-4 text-emerald-500" /> Primary Practice
+                                </h4>
+                                <p className="text-slate-600 font-bold">{doctor.clinicName || 'DermMate Affiliated Clinic'}</p>
+                                <p className="text-xs text-slate-400 font-medium mt-1 uppercase tracking-tighter">{doctor.clinicAddress || 'Location provided upon booking'}</p>
                             </div>
                         </div>
                     </Card>
 
-                    {/* Certificates Section */}
-                    <Card className="rounded-3xl border-none shadow-sm ring-1 ring-gray-100 p-8">
-                        <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-                            <Shield className="w-6 h-6 text-emerald-500" />
-                            Verified Trust Documents
-                        </h2>
+                    <Card className="rounded-[2.5rem] border-none shadow-xl shadow-slate-100 ring-1 ring-slate-100 p-10">
+                        <div className="flex items-center justify-between mb-8">
+                            <h2 className="text-2xl font-black text-slate-900 flex items-center gap-3">
+                                <Shield className="w-8 h-8 text-emerald-500" />
+                                Verified Credentials
+                            </h2>
+                            {doctor.isDoctorVerified && (
+                                <span className="bg-emerald-500 text-white p-2 rounded-xl">
+                                    <CheckCircle className="w-5 h-5 fill-white" />
+                                </span>
+                            )}
+                        </div>
 
-                        {!dermatologist.verified || !dermatologist.certifications || dermatologist.certifications.length === 0 ? (
-                            <div className="text-center py-8 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
-                                <Shield className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                                <p className="text-gray-500">Wait for verification or no documents public yet.</p>
+                        {!doctor.isDoctorVerified ? (
+                            <div className="p-12 text-center bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
+                                <Shield className="w-16 h-16 text-slate-200 mx-auto mb-4" />
+                                <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">Credentials Pending Admin Verification</p>
                             </div>
                         ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {dermatologist.certifications.map((cert, idx) => (
-                                    <div key={idx} className="flex items-center gap-3 p-4 bg-gray-50 rounded-2xl border border-gray-100 group hover:border-emerald-200 hover:bg-white transition-all duration-300 shadow-sm hover:shadow-md">
-                                        <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
-                                            <FileText className="w-5 h-5 text-emerald-600" />
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="font-semibold text-gray-900 truncate text-sm">{cert.split(/[\\/]/).pop()}</p>
-                                            <span className="text-[10px] text-emerald-600 font-bold uppercase tracking-widest">Verified Document</span>
-                                        </div>
-                                        <a
-                                            href={`${apiUrl}/${cert.replace(/\\/g, '/')}`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="p-2 hover:bg-emerald-50 rounded-lg text-emerald-600 transition-colors"
-                                            title="Download / View"
-                                        >
-                                            <FileText className="w-5 h-5" />
-                                        </a>
+                            <div className="space-y-4">
+                                {doctor.certifications && doctor.certifications.length > 0 && (
+                                    <div className="space-y-4">
+                                        {doctor.certifications.map((path, idx) => (
+                                            <div key={idx} className="flex items-center gap-4 p-5 bg-white rounded-2xl ring-1 ring-slate-100 shadow-sm group hover:ring-emerald-200 transition-all">
+                                                <div className="w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center">
+                                                    <FileText className="w-7 h-7 text-emerald-600" />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <p className="font-black text-slate-900 uppercase text-xs tracking-widest">Medical Credential #{idx + 1}</p>
+                                                    <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-tighter">Verified Expert Document</p>
+                                                </div>
+                                                <a 
+                                                    href={`${apiUrl}/${path.replace(/\\/g, '/')}`} 
+                                                    target="_blank" 
+                                                    rel="noreferrer" 
+                                                    className="p-3 bg-slate-50 hover:bg-emerald-500 hover:text-white rounded-xl transition-all"
+                                                >
+                                                    <ExternalLink className="w-5 h-5" />
+                                                </a>
+                                            </div>
+                                        ))}
                                     </div>
-                                ))}
+                                )}
+                                <div className="p-6 bg-emerald-50 rounded-3xl border border-emerald-100 flex items-start gap-4">
+                                    <CertificateIcon className="w-8 h-8 text-emerald-600 shrink-0" />
+                                    <div>
+                                        <p className="font-black text-emerald-900 text-sm uppercase mb-1">Authenticity Guaranteed</p>
+                                        <p className="text-xs text-emerald-700 font-medium italic border-l-2 border-emerald-200 pl-4 mt-2">
+                                            DermMate's verification department has manually cross-referenced this specialist's identifiers with the National Medical Register.
+                                        </p>
+                                    </div>
+                                </div>
                             </div>
                         )}
-
-                        <div className="mt-8 p-4 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center gap-3">
-                            <CertificateIcon className="w-8 h-8 text-emerald-600" />
-                            <p className="text-xs text-emerald-800 leading-snug">
-                                <span className="font-bold block mb-0.5">Professional Trust Guarantee</span>
-                                DermMate verifies all medical licenses and degrees manually to ensure the highest standards of safety and accuracy.
-                            </p>
-                        </div>
                     </Card>
                 </div>
 
-                {/* Right Column: Statistics & Quick Info */}
-                <div className="space-y-6">
-                    <Card className="rounded-3xl border-none shadow-sm ring-1 ring-emerald-500 overflow-hidden">
-                        <div className="bg-emerald-500 p-6 text-white">
-                            <h3 className="text-lg font-bold flex items-center gap-2">
-                                <TrendingUp className="w-5 h-5" />
-                                Expert Performance
-                            </h3>
+                <div className="space-y-8">
+                    <Card className="rounded-[2.5rem] border-none bg-emerald-600 p-8 shadow-2xl shadow-emerald-100 text-white overflow-hidden relative">
+                        <div className="absolute top-0 right-0 p-4 opacity-10">
+                            <TrendingUp className="w-32 h-32" />
                         </div>
-                        <div className="p-6 grid grid-cols-2 gap-4">
-                            <div className="space-y-1">
-                                <p className="text-sm text-gray-500">Global Cases</p>
-                                <p className="text-2xl font-bold text-gray-900">1.2k+</p>
+                        <h3 className="text-xl font-black mb-1 flex items-center gap-2 relative z-10">
+                            Expert Statistics
+                        </h3>
+                        <p className="text-emerald-100/70 text-[10px] font-black uppercase tracking-widest mb-8 relative z-10">On-Platform Performance</p>
+                        
+                        <div className="grid grid-cols-2 gap-8 relative z-10">
+                            <div>
+                                <p className="text-[10px] font-black uppercase text-emerald-200/60 tracking-widest mb-1">Global Cases</p>
+                                <p className="text-3xl font-black">1.5k+</p>
                             </div>
-                            <div className="space-y-1">
-                                <p className="text-sm text-gray-500">Experience</p>
-                                <p className="text-2xl font-bold text-gray-900">{dermatologist.yearsOfExperience}y</p>
+                            <div>
+                                <p className="text-[10px] font-black uppercase text-emerald-200/60 tracking-widest mb-1">Experience</p>
+                                <p className="text-3xl font-black">{doctor.experience || '0'}y</p>
                             </div>
-                            <div className="space-y-1">
-                                <p className="text-sm text-gray-500">Satisfaction</p>
-                                <p className="text-2xl font-bold text-gray-900 font-mono">4.9/5</p>
-                            </div>
-                            <div className="space-y-1">
-                                <p className="text-sm text-gray-500">Availability</p>
-                                <p className="text-sm font-bold text-emerald-600 uppercase pt-2">Available</p>
-                            </div>
-                        </div>
-                        <div className="px-6 pb-6 mt-2">
-                            <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
-                                <div className="bg-emerald-500 h-full w-[95%]"></div>
-                            </div>
-                            <p className="text-[10px] text-gray-400 mt-2 text-center uppercase tracking-widest font-bold">Platform Success Rate</p>
-                        </div>
-                    </Card>
-
-                    <Card className="rounded-3xl border-none shadow-sm ring-1 ring-gray-100 p-6">
-                        <h3 className="font-bold text-gray-900 mb-4">Contact & Location</h3>
-                        <div className="space-y-4">
-                            <div className="flex items-start gap-3">
-                                <MapPin className="w-5 h-5 text-emerald-500 mt-0.5" />
-                                <div>
-                                    <p className="text-sm font-semibold text-gray-900">{dermatologist.clinicName || 'General Clinic'}</p>
-                                    <p className="text-xs text-gray-500">{dermatologist.clinicAddress}, {dermatologist.city}</p>
+                            <div>
+                                <p className="text-[10px] font-black uppercase text-emerald-200/60 tracking-widest mb-1">Rating</p>
+                                <div className="flex items-center gap-1.5">
+                                    <p className="text-3xl font-black">4.9</p>
+                                    <Star className="w-4 h-4 fill-white" />
                                 </div>
                             </div>
-                            <div className="flex items-center gap-3">
-                                <Phone className="w-5 h-5 text-emerald-500" />
-                                <p className="text-sm text-gray-600">{dermatologist.phone}</p>
-                            </div>
-                            <div className="flex items-center gap-3">
-                                <Mail className="w-5 h-5 text-emerald-500" />
-                                <p className="text-sm text-gray-600 truncate">{dermatologist.userId?.email || 'Dr_Contact@DermMate.com'}</p>
+                            <div>
+                                <p className="text-[10px] font-black uppercase text-emerald-200/60 tracking-widest mb-1">Recovery</p>
+                                <p className="text-3xl font-black">98%</p>
                             </div>
                         </div>
-                        <div className="mt-6 pt-6 border-t border-gray-100">
-                            <p className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-2">Schedule</p>
-                            <div className="flex items-center gap-2 text-emerald-700 font-medium">
-                                <Calendar className="w-4 h-4" />
-                                <span>{dermatologist.availability || 'Monday - Friday'}</span>
+
+                        <div className="mt-10 pt-8 border-t border-white/10">
+                            <div className="bg-white/20 p-4 rounded-2xl flex items-center justify-between">
+                                <span className="text-[10px] font-black uppercase tracking-widest">Next Available</span>
+                                <span className="text-xs font-bold bg-white text-emerald-700 px-3 py-1 rounded-lg">Today</span>
                             </div>
                         </div>
                     </Card>
 
-                    {/* Licenses Section as requested */}
-                    <Card className="rounded-3xl border-none shadow-sm ring-1 ring-gray-100 p-6 bg-emerald-50/20">
-                        <h3 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
-                            <Award className="w-5 h-5 text-emerald-600" />
-                            Dermatology Licenses
-                        </h3>
-                        <ul className="space-y-2">
-                            <li className="text-sm text-gray-600 flex items-center gap-2">
-                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                                Medical Practice License
-                            </li>
-                            <li className="text-sm text-gray-600 flex items-center gap-2">
-                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                                Dermatology Specialization
-                            </li>
-                            <li className="text-sm text-gray-600 flex items-center gap-2 text-xs opacity-60">
-                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                                Annual Registration 2024
-                            </li>
-                        </ul>
+                    <Card className="rounded-[2.5rem] border-none shadow-xl ring-1 ring-slate-100 p-8 flex flex-col gap-6">
+                        <h3 className="font-black text-slate-900 border-b border-slate-50 pb-4 uppercase text-xs tracking-widest">Practice Information</h3>
+                        <div className="space-y-6">
+                            <div className="flex items-start gap-4">
+                                <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center shrink-0">
+                                    <MapPin className="w-5 h-5 text-emerald-500" />
+                                </div>
+                                <div className="min-w-0">
+                                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-0.5">Primary Practice</p>
+                                    <p className="text-sm font-bold text-slate-900 truncate">{doctor.clinicName || 'Expert Dermatology Center'}</p>
+                                    <p className="text-xs text-slate-500 italic mt-1">{doctor.clinicAddress || 'Address details confirmed upon booking.'}</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-4">
+                                <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center shrink-0">
+                                    <Phone className="w-5 h-5 text-emerald-500" />
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-0.5">Contact Line</p>
+                                    <p className="text-sm font-bold text-slate-900">{doctor.phoneNumber || 'Via DermMate Concierge'}</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-4">
+                                <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center shrink-0">
+                                    <Mail className="w-5 h-5 text-emerald-500" />
+                                </div>
+                                <div className="min-w-0">
+                                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-0.5">Professional Email</p>
+                                    <p className="text-sm font-bold text-slate-900 truncate">{doctor.email}</p>
+                                </div>
+                            </div>
+                        </div>
                     </Card>
                 </div>
             </div>
