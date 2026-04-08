@@ -177,20 +177,30 @@ const Onboarding = () => {
         try {
             const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
             const fullUrl = `${apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl}/api/auth/profile`;
-            
+            console.log('Request URL:', fullUrl);
+
             const response = await fetch(fullUrl, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
                 },
-                body: JSON.stringify({
-                    ...formData,
-                    onboardingCompleted: true
-                }),
+                body: JSON.stringify(formData),
             });
 
-            const data = await response.json();
+            console.log('Response status:', response.status);
+
+            let data;
+            const contentType = response.headers.get("content-type");
+            if (contentType && contentType.indexOf("application/json") !== -1) {
+                data = await response.json();
+            } else {
+                const text = await response.text();
+                console.error('Non-JSON response received:', text);
+                throw new Error('Server returned an unexpected response format');
+            }
+
+            console.log('Response data:', data);
 
             if (response.ok) {
                 updateUser(data.user);
@@ -200,9 +210,10 @@ const Onboarding = () => {
                     message: 'Welcome to DermMate!',
                 });
 
-                // Small timeout to ensure state propagation
+                // Use a small timeout to ensure store state propagates
                 setTimeout(() => {
                     const target = `/dashboard/${data.user.role}`;
+                    console.log('Navigating to:', target);
                     navigate(target);
                 }, 100);
             } else {

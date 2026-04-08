@@ -1,242 +1,111 @@
-DermMate - AI Dermatology Platform Frontend & Full Stack
+# DermMate Web Platform v1.0
 
-DermMate v1.0 is an AI-powered dermatology platform designed to streamline dermatological workflows, improve patient care, and integrate intelligent clinical automation. The platform provides role-based access for patients, dermatologists, and administrators, supporting features such as AI-assisted image analysis, structured case management, appointment scheduling, and notification systems.
+**DermMate** is an AI-powered dermatology web platform designed to automate and streamline clinical dermatological workflows while improving patient care outcomes. It leverages machine learning models for image-based dermatological condition detection (e.g., alopecia), speech-to-text clinical documentation, and intelligent workflow automation.
 
-📌 Table of Contents
+This repository contains the web-based implementation of DermMate v1.0, including backend APIs, frontend React application, and integration with AI modules.
 
-Purpose
+---
 
-Features
+## Table of Contents
+- [Purpose](#purpose)
+- [Features](#features)
+- [User Roles](#user-roles)
+- [Technology Stack](#technology-stack)
+- [System Requirements](#system-requirements)
+- [Installation & Setup](#installation--setup)
+- [Usage](#usage)
+- [Non-Functional Requirements](#non-functional-requirements)
+- [References](#references)
 
-User Roles
+---
 
-Technology Stack
+## Purpose
+DermMate v1.0 aims to:
 
-System Requirements
+- Reduce manual clinical workload through intelligent automation.
+- Improve diagnostic efficiency using AI-assisted image analysis.
+- Enhance patient experience with guided data submission and streamlined communication.
+- Enable structured, traceable, and secure dermatological care delivery.
 
-Installation & Setup
+The platform is intended for patients, dermatologists, and administrative staff, providing a unified digital ecosystem for dermatology services.
 
-Project Structure
+---
 
-Demo Credentials
+## Features
 
-UX & Design
+### 1. User Registration & Authentication
+- Secure registration and login via email or Google.
+- Role-based access control for patients, dermatologists, and administrators.
+- Password recovery and profile management.
 
-Future Enhancements
+### 2. AI-Assisted Dermatological Image Analysis
+- Guided multi-angle image uploads.
+- AI-based detection of dermatological conditions (e.g., alopecia).
+- AI results attached to structured patient case records.
 
-License
+### 3. Patient Questionnaire & Case Submission
+- Structured medical history and lifestyle questionnaires.
+- Secure storage and linking to patient case files.
+- Data presented alongside AI analysis for dermatologist review.
 
-🧭 Purpose
+### 4. Clinical Workflow Automation
+- Speech-to-text clinical documentation.
+- Automated case structuring and follow-up scheduling.
+- Reduces consultation time and manual effort.
 
-DermMate aims to:
+### 5. Dermatologist Search & Appointment Management
+- Search verified dermatologists by location or name.
+- Book, confirm, and manage appointments.
+- Receive real-time notifications for appointment updates.
 
-Reduce manual clinical workload through intelligent automation.
+### 6. Notification & Reporting System
+- Real-time in-app and email notifications.
+- Track follow-ups, case updates, and payment status.
+- Maintain notification and payment history for transparency.
 
-Improve diagnostic efficiency using AI-assisted image analysis.
+---
 
-Enhance patient experience with guided data submission and streamlined communication.
+## User Roles
 
-Enable structured, traceable, and secure dermatological care delivery.
+### Patients
+- Submit medical data and dermatological images.
+- Book appointments and make online payments.
+- View diagnoses, treatment plans, and notifications.
 
-🌟 Features
-Authentication
+### Dermatologists
+- Review AI-assisted case summaries.
+- Document consultations and treatment plans.
+- Manage follow-ups and appointment confirmations.
 
-Email-based login/signup with role selection
+### Administrators
+- Manage users and role-based permissions.
+- Verify dermatologists and oversee AI models.
+- Generate reports and maintain audit logs.
 
-Mock and Google login (UI only)
+---
 
-Role-based routing and access protection
+## Technology Stack
 
-Patient Module
+- **Frontend:** React.js, Tailwind CSS, HTML5, CSS3  
+- **Backend:** Python (Flask or FastAPI), MongoDB  
+- **AI Tools:** TensorFlow, PyTorch, OpenCV  
+- **Security:** OAuth 2.0 authentication, role-based access control  
+- **Other:** Location APIs, secure payment gateway integration
 
-Dashboard with overview stats and cards
+---
 
-Profile management and history
+## System Requirements
 
-Complaint selection (Hair, Skin, Nails)
+- **Client Devices:** Desktop, laptop, tablet, or smartphone with camera access.  
+- **Operating Systems:** Windows, macOS, Android, iOS (browser-based).  
+- **Browser:** Latest versions of Chrome, Firefox, Safari, or Edge.  
+- **Network:** Continuous internet connection for AI processing, payment, and notifications.
 
-Multi-step questionnaires
+---
 
-Multi-angle image upload with validation
+## Installation & Setup
 
-AI Alopecia Detection (UI mock)
-
-Dermatologist search and booking
-
-Appointment management and pre-appointment case submission
-
-Follow-up tracking
-
-Medical record and treatment plan viewer
-
-Notifications and clinic discovery
-
-Dermatologist Module
-
-Dashboard with appointment queue
-
-Certification upload and verification
-
-Case management and image comparison (before/after)
-
-Clinical notes with speech-to-text
-
-Treatment planning and follow-ups
-
-Notifications and alerts
-
-Admin Module
-
-Analytics dashboard
-
-User management and dermatologist verification
-
-AI model management
-
-Reports and broadcast notifications
-
-System Role
-
-Image quality and multi-angle validation
-
-Case structuring and AI inference status
-
-Speech-to-text processing
-
-Reminder automation logs
-
-Activity and system reports
-
-AI Integration
-
-YOLOv8-based alopecia detection
-
-Intelligent image validation (blurry, dark, low-res rejection)
-
-Persistent storage of uploaded images
-
-Prediction history viewable by patients
-
-👥 User Roles
-Role	Capabilities
-Patient	Submit cases, upload images, book appointments, view reports and treatments.
-Dermatologist	Review AI-assisted cases, document consultations, manage follow-ups, handle appointments.
-Admin	Manage users, verify dermatologists, maintain AI models, generate reports.
-🛠 Technology Stack
-
-Frontend:
-
-React 18 + Vite
-
-Tailwind CSS
-
-React Router DOM
-
-Framer Motion
-
-Lucide React Icons
-
-Chart.js / Recharts
-
-Backend:
-
-Python (FastAPI) for AI inference and API
-
-Node.js/Express for image storage (Multer)
-
-MongoDB for session and history storage
-
-AI Tools:
-
-YOLOv8 for alopecia detection
-
-TensorFlow / PyTorch / OpenCV
-
-Other:
-
-JWT Authentication
-
-Role-based access control
-
-Responsive design (Mobile/Tablet/Desktop)
-
-💻 System Requirements
-
-Client Device: Desktop, laptop, tablet, or smartphone with camera
-
-OS: Windows, macOS, Android, iOS
-
-Browser: Latest Chrome, Firefox, Safari, Edge
-
-Network: Internet connection for AI processing, notifications, and payments
-
-🚀 Installation & Setup
-Frontend Setup
-cd DermMate/frontend
-npm install
-npm start
-
-Open browser at http://localhost:3000
-
-Backend AI (FastAPI)
-cd backend
-pip install -r requirements.txt
-python main.py
-
-Server runs at http://localhost:8000
-
-Middleware Node.js
-cd backend
-npm install
-npm start
-
-Middleware runs at http://localhost:3000
-
-Production Build
-npm run build
-npm run preview
-
-Built files located in /dist
-
-🎨 UX & Design
-
-Theme: Emerald/Teal medical theme
-
-Layout: Card-based, glassmorphism
-
-Animations: Smooth transitions, hover effects, skeleton loaders
-
-Responsive: Mobile → Desktop → Large screens
-
-Dark Mode: Optional support
-
-🔮 Future Enhancements
-
-Real backend integration
-
-AI-assisted detection live
-
-Real-time notifications
-
-Cloud storage support for uploads
-
-More analytics and chart types
-
-Enhanced dark mode
-
-📄 License
-
-This project is part of a Final Year Project (FYP).
-Built with ❤️ for dermatology care and YOLOv8 Alopecia Detection.
-
-💡 Summary
-
-DermMate provides a professional, AI-powered dermatology platform, combining:
-
-Patient-friendly case submission
-
-Dermatologist-assisted AI review
-
-Admin monitoring and analytics
-
-Full-stack architecture ready for production
+1. Clone the repository:
+```bash
+git clone https://github.com/Fizza-77/Dermmate-ai-dermatology-platform.git
+cd DermMate

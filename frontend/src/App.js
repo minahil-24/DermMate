@@ -31,7 +31,6 @@ import PatientCases from './pages/Patient/PatientCases'
 import PatientAppointments from './pages/Patient/PatientAppointments'
 import Payment from './pages/Patient/Payment'
 import AlopeciaDetection from './pages/Patient/AlopeciaDetection'
-import DermatologistDetail from './pages/Patient/DermatologistDetail'
 
 // Dermatologist Pages
 import DermatologistDashboard from './pages/Dermatologist/DermatologistDashboard'
@@ -220,14 +219,6 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={['patient']}>
                 <Payment />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/patient/dermatologist/:id"
-            element={
-              <ProtectedRoute allowedRoles={['patient']}>
-                <DermatologistDetail />
               </ProtectedRoute>
             }
           />

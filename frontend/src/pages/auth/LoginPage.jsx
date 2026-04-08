@@ -23,6 +23,27 @@ const LoginPage = () => {
     setError('')
 
     try {
+      // 🔹 Hardcoded Admin Login
+      if (email === 'minahil@gmail.com' && password === '11111111') {
+        const adminUser = {
+          id: 'admin-1',
+          username: 'Minahil Admin',
+          email: 'minahil@gmail.com',
+          role: 'admin',
+        }
+
+        login(adminUser, 'hardcoded-admin-token', 'admin')
+
+        addToast({
+          type: 'success',
+          title: 'Admin Login Successful',
+          message: 'Welcome Admin!',
+        })
+
+        navigate('/dashboard/admin')
+        return
+      }
+
       // 🔹 Normal API Login
       const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
       const res = await fetch(`${apiUrl}/api/auth/login`, {
@@ -42,14 +63,8 @@ const LoginPage = () => {
       addToast({
         type: 'success',
         title: 'Login Successful',
-        message: `Welcome back, ${data.user.name}!`,
+        message: `Welcome back, ${data.user.username}!`,
       })
-
-      // Check for onboarding
-      if (!data.user.onboardingCompleted && data.user.role !== 'admin') {
-        navigate('/onboarding')
-        return
-      }
 
       if (data.user.role === 'dermatologist') {
         navigate('/dashboard/dermatologist')

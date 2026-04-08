@@ -82,19 +82,11 @@ const Navbar = ({ onMenuClick, isMobileMenuOpen }) => {
                 <div className="text-sm font-medium text-gray-900">{user?.name || 'User'}</div>
                 <div className="text-xs text-gray-500 capitalize">{user?.role || 'user'}</div>
               </div>
-              <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-700 font-bold overflow-hidden border border-emerald-200">
-                {user?.profilePhoto ? (
-                  <img 
-                    src={`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/${user.profilePhoto.replace(/\\/g, '/')}`} 
-                    alt="Profile" 
-                    className="w-full h-full object-cover" 
-                  />
+              <div className="w-10 h-10 bg-emerald-600 rounded-full flex items-center justify-center text-white font-semibold overflow-hidden">
+                {user?.profilePic ? (
+                  <img src={user.profilePic} alt="Profile" className="w-full h-full object-cover" />
                 ) : (
-                  <img 
-                    src={user?.gender === 'female' ? '/imgs/default-female.png' : '/imgs/default-male.png'} 
-                    alt="Placeholder" 
-                    className="w-full h-full object-cover" 
-                  />
+                  user?.name?.charAt(0) || 'U'
                 )}
               </div>
             </div>
