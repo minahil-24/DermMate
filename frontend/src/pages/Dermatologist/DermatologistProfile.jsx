@@ -6,6 +6,7 @@ import Breadcrumbs from '../../components/common/Breadcrumbs'
 import { useAuthStore } from '../../store/authStore'
 import { useToastStore } from '../../store/toastStore'
 import axios from 'axios'
+import { getCertPath, getCertStatus } from '../../utils/certificates'
 
 const DermatologistProfile = () => {
     const { user, updateUser, token } = useAuthStore()
@@ -87,28 +88,45 @@ const DermatologistProfile = () => {
     const handleSave = async () => {
         try {
             setSaving(true)
-            const data = new FormData()
-            
-            // Append all form fields
-            Object.keys(formData).forEach(key => {
-                data.append(key, formData[key])
-            })
-            
-            if (profilePhoto) data.append('profilePhoto', profilePhoto)
-            if (certificate) data.append('certifications', certificate)
-
-            const response = await axios.put(`${apiUrl}/api/auth/profile`, data, {
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                    'Authorization': `Bearer ${token}`
-                }
-            })
-
-            if (response.status === 200) {
-                updateUser(response.data.user)
-                setIsEditing(false)
-                addToast({ type: 'success', title: 'Profile Updated', message: 'Your professional profile has been updated' })
+            const patchBody = {
+                name: formData.name,
+                phoneNumber: formData.phoneNumber,
+                specialty: formData.specialty,
+                experience: formData.experience,
+                clinicName: formData.clinicName,
+                location: formData.location,
+                city: formData.city,
+                bio: formData.bio,
+                consultationFee: formData.consultationFee,
+                availability: formData.availability,
+                gender: formData.gender,
             }
+
+            const response = await axios.patch(`${apiUrl}/api/auth/profile`, patchBody, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            })
+
+            let latestUser = response.data.user
+            updateUser(latestUser)
+
+            if (profilePhoto || certificate) {
+                const fd = new FormData()
+                if (profilePhoto) fd.append('profilePhoto', profilePhoto)
+                if (certificate) fd.append('certifications', certificate)
+                const fileRes = await axios.post(`${apiUrl}/api/auth/profile/files`, fd, {
+                    headers: { Authorization: `Bearer ${token}` },
+                })
+                latestUser = fileRes.data.user
+                updateUser(latestUser)
+            }
+
+            setIsEditing(false)
+            setProfilePhoto(null)
+            setCertificate(null)
+            addToast({ type: 'success', title: 'Profile Updated', message: 'Your professional profile has been updated' })
         } catch (error) {
             addToast({ type: 'error', title: 'Update Failed', message: error.response?.data?.message || error.message || 'Failed to update profile' })
         } finally {
@@ -250,19 +268,29 @@ const DermatologistProfile = () => {
                                 </div>
                                 {user?.certifications && user.certifications.length > 0 ? (
                                     <div className="space-y-3 mt-4">
-                                        {user.certifications.map((path, idx) => (
+                                        {user.certifications.map((cert, idx) => {
+                                            const path = getCertPath(cert)
+                                            const st = getCertStatus(cert)
+                                            return (
+                                            <div key={idx} className="flex items-center gap-2 bg-white p-3 rounded-xl border border-blue-100 shadow-sm">
                                             <a 
-                                                key={idx}
                                                 href={`${apiUrl}/${path.replace(/\\/g, '/')}`} 
                                                 target="_blank" 
                                                 rel="noreferrer" 
-                                                className="flex items-center gap-2 text-blue-600 hover:text-blue-700 bg-white p-3 rounded-xl border border-blue-100 shadow-sm transition-all"
+                                                className="flex items-center gap-2 text-blue-600 hover:text-blue-700 flex-1 min-w-0"
                                             >
                                                 <FileText className="w-4 h-4 shrink-0" />
                                                 <span className="text-sm font-bold truncate flex-1">Certification #{idx + 1}</span>
-                                                <span className="text-[10px] font-black uppercase text-blue-400">View Document</span>
+                                                <span className="text-[10px] font-black uppercase text-blue-400 shrink-0">View</span>
                                             </a>
-                                        ))}
+                                            <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full shrink-0 ${
+                                              st === 'verified' ? 'bg-emerald-100 text-emerald-800' :
+                                              st === 'rejected' ? 'bg-red-100 text-red-800' :
+                                              'bg-amber-100 text-amber-800'
+                                            }`}>{st === 'pending' ? 'Pending' : st === 'verified' ? 'Verified' : 'Declined'}</span>
+                                            </div>
+                                            )
+                                        })}
                                     </div>
                                 ) : (
                                     <p className="text-sm text-blue-600 mt-2 mb-4 italic font-medium">No medical degrees uploaded yet. High-trust profiles have 2+ verified documents.</p>

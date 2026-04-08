@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from './store/authStore'
 import ProtectedRoute from './components/ProtectedRoute'
 import DashboardLayout from './components/layout/DashboardLayout'
@@ -19,7 +19,10 @@ import Questionnaire from './pages/Patient/Questionnaire'
 import ImageUpload from './pages/Patient/ImageUpload'
 import AIDetection from './pages/Patient/AIDetection'
 import DermatologistSearch from './pages/Patient/DermatologistSearch'
-import AppointmentBooking from './pages/Patient/AppointmentBooking'
+import MedicalRecordsUpload from './pages/Patient/MedicalRecordsUpload'
+import AffectedAreaImages from './pages/Patient/AffectedAreaImages'
+import BookingSchedule from './pages/Patient/BookingSchedule'
+import BookingReviewSubmit from './pages/Patient/BookingReviewSubmit'
 import PreAppointmentSubmission from './pages/Patient/PreAppointmentSubmission'
 import FollowUp from './pages/Patient/FollowUp'
 import MedicalRecords from './pages/Patient/MedicalRecords'
@@ -53,6 +56,7 @@ import DermatologistVerification from './pages/admin/DermatologistVerification'
 import AIModelManagement from './pages/admin/AIModelManagement'
 import ReportsAnalytics from './pages/admin/ReportsAnalytics'
 import BroadcastNotifications from './pages/admin/BroadcastNotifications'
+import AdminAlerts from './pages/admin/AdminAlerts'
 import SystemRevenue from './pages/admin/SystemRevenue'
 
 // System Pages
@@ -64,6 +68,11 @@ import SpeechToText from './pages/system/SpeechToText'
 import ReminderAutomation from './pages/system/ReminderAutomation'
 import ActivityLogs from './pages/system/ActivityLogs'
 import SystemReports from './pages/system/SystemReports'
+
+function AppointmentBookingRedirect() {
+  const location = useLocation()
+  return <Navigate to="/patient/booking/complaint" replace state={location.state} />
+}
 
 function App() {
   const { isAuthenticated, role } = useAuthStore()
@@ -144,10 +153,58 @@ function App() {
             }
           />
           <Route
+            path="/patient/booking/complaint"
+            element={
+              <ProtectedRoute allowedRoles={['patient']}>
+                <ComplaintSelection />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/patient/booking/questionnaire"
+            element={
+              <ProtectedRoute allowedRoles={['patient']}>
+                <Questionnaire />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/patient/booking/medical-records"
+            element={
+              <ProtectedRoute allowedRoles={['patient']}>
+                <MedicalRecordsUpload />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/patient/booking/affected-images"
+            element={
+              <ProtectedRoute allowedRoles={['patient']}>
+                <AffectedAreaImages />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/patient/booking/schedule"
+            element={
+              <ProtectedRoute allowedRoles={['patient']}>
+                <BookingSchedule />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/patient/booking/review"
+            element={
+              <ProtectedRoute allowedRoles={['patient']}>
+                <BookingReviewSubmit />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/patient/appointment-booking"
             element={
               <ProtectedRoute allowedRoles={['patient']}>
-                <AppointmentBooking />
+                <AppointmentBookingRedirect />
               </ProtectedRoute>
             }
           />
@@ -379,6 +436,14 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <BroadcastNotifications />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/alerts"
+            element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AdminAlerts />
               </ProtectedRoute>
             }
           />

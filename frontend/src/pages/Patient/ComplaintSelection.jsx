@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Scissors, Heart, Hand } from 'lucide-react'
 
@@ -7,10 +7,19 @@ import { Scissors, Heart, Hand } from 'lucide-react'
 import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
 import Breadcrumbs from '../../components/common/Breadcrumbs'
+import { mergeBooking } from '../../utils/bookingFlow'
 
 const ComplaintSelection = () => {
   const [selectedType, setSelectedType] = useState(null)
   const navigate = useNavigate()
+  const location = useLocation()
+  const isBooking = location.pathname.includes('/patient/booking/')
+
+  useEffect(() => {
+    if (isBooking && !location.state?.doctorId) {
+      navigate('/patient/dermatologists', { replace: true })
+    }
+  }, [isBooking, location.state, navigate])
 
   const complaintTypes = [
     {
@@ -41,22 +50,40 @@ const ComplaintSelection = () => {
 
 
   const handleContinue = () => {
-    if (selectedType) {
-      if (selectedType === 'hair') {
-        navigate('/patient/alopecia-detection', { state: { complaintType: selectedType } })
-      } else {
-        navigate('/patient/questionnaire', { state: { complaintType: selectedType } })
-      }
+    if (!selectedType) return
+    if (isBooking) {
+      const doctorId = location.state.doctorId
+      const doctorName = location.state.doctorName
+      mergeBooking({ doctorId, doctorName, complaintType: selectedType })
+      navigate('/patient/booking/questionnaire', {
+        state: { doctorId, complaintType: selectedType, bookingFlow: true, doctorName },
+      })
+      return
+    }
+    if (selectedType === 'hair') {
+      navigate('/patient/alopecia-detection', { state: { complaintType: selectedType } })
+    } else {
+      navigate('/patient/questionnaire', { state: { complaintType: selectedType } })
     }
   }
 
   return (
     <div>
-      <Breadcrumbs items={[{ label: 'New Complaint', link: '/patient/complaint' }]} />
+      <Breadcrumbs
+        items={
+          isBooking
+            ? [{ label: 'Find Specialist', link: '/patient/dermatologists' }, { label: 'Complaint type' }]
+            : [{ label: 'New Complaint', link: '/patient/complaint' }]
+        }
+      />
 
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Select Complaint Type</h1>
-        <p className="text-gray-600">Choose the area of concern to get started</p>
+        <p className="text-gray-600">
+          {isBooking
+            ? 'Choose skin, hair, or nails for this appointment booking.'
+            : 'Choose the area of concern to get started'}
+        </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">

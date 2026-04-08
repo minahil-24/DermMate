@@ -1,5 +1,24 @@
 const mongoose = require('mongoose')
 
+/**
+ * All profile fields (name, location, specialty, etc.) are stored in MongoDB
+ * via the User collection. Multer is only used in routes that upload files
+ * (profile photo, certificates, case files); those store file paths in this document.
+ */
+
+const certificationSchema = new mongoose.Schema(
+  {
+    filePath: { type: String, required: true },
+    status: {
+      type: String,
+      enum: ['pending', 'verified', 'rejected'],
+      default: 'pending',
+    },
+    uploadedAt: { type: Date, default: Date.now },
+  },
+  { _id: true }
+)
+
 const userSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, unique: true, required: true },
@@ -26,7 +45,7 @@ const userSchema = new mongoose.Schema({
   bio: String,
   consultationFee: Number,
   availability: String,
-  certifications: { type: [String], default: [] }, // Array of Paths to uploaded certificates
+  certifications: { type: [certificationSchema], default: [] },
   isDoctorVerified: {
     type: Boolean,
     default: false

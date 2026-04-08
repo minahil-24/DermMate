@@ -13,6 +13,7 @@ import Button from '../../components/ui/Button';
 import Breadcrumbs from '../../components/common/Breadcrumbs';
 import { useAuthStore } from '../../store/authStore';
 import { useToastStore } from '../../store/toastStore';
+import { getCertPath, getCertStatus } from '../../utils/certificates';
 
 const DermatologistDetail = () => {
     const { id } = useParams();
@@ -134,8 +135,8 @@ const DermatologistDetail = () => {
                             </div>
 
                             <div className="flex gap-3 pb-4">
-                                <Button size="lg" className="rounded-2xl px-12 bg-slate-900 shadow-xl shadow-slate-200 h-16 font-black uppercase tracking-widest text-xs" onClick={() => navigate('/patient/appointment-booking', { state: { doctorId: doctor._id } })}>
-                                    Secure Consultation
+                                <Button size="lg" className="rounded-2xl px-12 bg-slate-900 shadow-xl shadow-slate-200 h-16 font-black uppercase tracking-widest text-xs" onClick={() => navigate('/patient/booking/complaint', { state: { doctorId: doctor._id, doctorName: doctor.name } })}>
+                                    Book appointment
                                 </Button>
                             </div>
                         </div>
@@ -192,9 +193,15 @@ const DermatologistDetail = () => {
                             </div>
                         ) : (
                             <div className="space-y-4">
-                                {doctor.certifications && doctor.certifications.length > 0 && (
+                                {(() => {
+                                    const verifiedOnly = (doctor.certifications || []).filter(
+                                        (c) => getCertStatus(c) === 'verified'
+                                    );
+                                    return verifiedOnly.length > 0 ? (
                                     <div className="space-y-4">
-                                        {doctor.certifications.map((path, idx) => (
+                                        {verifiedOnly.map((cert, idx) => {
+                                            const path = getCertPath(cert);
+                                            return (
                                             <div key={idx} className="flex items-center gap-4 p-5 bg-white rounded-2xl ring-1 ring-slate-100 shadow-sm group hover:ring-emerald-200 transition-all">
                                                 <div className="w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center">
                                                     <FileText className="w-7 h-7 text-emerald-600" />
@@ -212,9 +219,11 @@ const DermatologistDetail = () => {
                                                     <ExternalLink className="w-5 h-5" />
                                                 </a>
                                             </div>
-                                        ))}
+                                            )
+                                        })}
                                     </div>
-                                )}
+                                    ) : null;
+                                })()}
                                 <div className="p-6 bg-emerald-50 rounded-3xl border border-emerald-100 flex items-start gap-4">
                                     <CertificateIcon className="w-8 h-8 text-emerald-600 shrink-0" />
                                     <div>

@@ -46,30 +46,41 @@ const PatientProfile = () => {
     const handleSave = async () => {
         try {
             setSaving(true)
-            const data = new FormData()
-            Object.keys(formData).forEach(key => {
-                data.append(key, formData[key])
-            })
-            if (profilePhoto) {
-                data.append('profilePhoto', profilePhoto)
+            const patchBody = {
+                name: formData.name,
+                phoneNumber: formData.phoneNumber,
+                location: formData.location,
+                age: formData.age,
+                gender: formData.gender,
             }
 
-            const response = await axios.put(`${apiUrl}/api/auth/profile`, data, {
+            const response = await axios.patch(`${apiUrl}/api/auth/profile`, patchBody, {
                 headers: {
-                    'Content-Type': 'multipart/form-data',
-                    'Authorization': `Bearer ${token}`
-                }
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
             })
 
-            if (response.status === 200) {
-                updateUser(response.data.user)
-                setIsEditing(false)
-                addToast({
-                    type: 'success',
-                    title: 'Profile Updated',
-                    message: 'Your profile has been updated successfully',
+            let latestUser = response.data.user
+            updateUser(latestUser)
+
+            if (profilePhoto) {
+                const fd = new FormData()
+                fd.append('profilePhoto', profilePhoto)
+                const fileRes = await axios.post(`${apiUrl}/api/auth/profile/files`, fd, {
+                    headers: { Authorization: `Bearer ${token}` },
                 })
+                latestUser = fileRes.data.user
+                updateUser(latestUser)
             }
+
+            setIsEditing(false)
+            setProfilePhoto(null)
+            addToast({
+                type: 'success',
+                title: 'Profile Updated',
+                message: 'Your profile has been updated successfully',
+            })
         } catch (error) {
             addToast({
                 type: 'error',

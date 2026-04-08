@@ -5,7 +5,6 @@ import { Search, MapPin, Star, GraduationCap, ArrowRight, Loader2, Filter, X, Ch
 import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
 import Breadcrumbs from '../../components/common/Breadcrumbs'
-import { debounce } from 'lodash'
 import axios from 'axios'
 
 const cityFilters = ['All', 'Karachi', 'Lahore', 'Islamabad']
@@ -43,14 +42,22 @@ const DermatologistSearch = () => {
         fetchDermatologists()
     }, [])
 
-    const filteredDoctors = dermatologists.filter(doctor => {
-        const matchesSearch = !searchTerm || doctor.name.toLowerCase().includes(searchTerm.toLowerCase())
-        const matchesCity = !filters.city || (doctor.location?.toLowerCase().includes(filters.city.toLowerCase()) || doctor.city?.toLowerCase().includes(filters.city.toLowerCase()))
-        const matchesSpecialty = !filters.specialty || doctor.specialty?.toLowerCase().includes(filters.specialty.toLowerCase())
-        const matchesKeyword = !filters.keyword || 
-            (doctor.bio?.toLowerCase().includes(filters.keyword.toLowerCase()) || 
-             doctor.clinicName?.toLowerCase().includes(filters.keyword.toLowerCase()))
-        
+    const filteredDoctors = dermatologists.filter((doctor) => {
+        const name = (doctor.name || '').toLowerCase()
+        const matchesSearch = !searchTerm || name.includes(searchTerm.toLowerCase())
+        const loc = (doctor.location || '').toLowerCase()
+        const city = (doctor.city || '').toLowerCase()
+        const matchesCity =
+            !filters.city ||
+            loc.includes(filters.city.toLowerCase()) ||
+            city.includes(filters.city.toLowerCase())
+        const spec = (doctor.specialty || '').toLowerCase()
+        const matchesSpecialty = !filters.specialty || spec.includes(filters.specialty.toLowerCase())
+        const kw = (filters.keyword || '').toLowerCase()
+        const matchesKeyword =
+            !filters.keyword ||
+            (doctor.bio && doctor.bio.toLowerCase().includes(kw)) ||
+            (doctor.clinicName && doctor.clinicName.toLowerCase().includes(kw))
         return matchesSearch && matchesCity && matchesSpecialty && matchesKeyword
     })
 
@@ -66,6 +73,11 @@ const DermatologistSearch = () => {
             <div className="mt-8 mb-12">
                 <h1 className="text-4xl font-black text-slate-900 mb-2">Find a Specialist</h1>
                 <p className="text-slate-500 font-medium">Connect with verified dermatology experts for professional care.</p>
+                {!loading && !error && (
+                    <p className="text-sm text-slate-600 mt-2">
+                        Showing {filteredDoctors.length} of {dermatologists.length} dermatologist{dermatologists.length !== 1 ? 's' : ''} (all registered doctors are listed; use search or filters to narrow down).
+                    </p>
+                )}
             </div>
 
             <Card className="mb-8 border-none shadow-xl shadow-slate-100 rounded-3xl p-4 bg-white ring-1 ring-slate-100">
@@ -217,7 +229,11 @@ const DermatologistSearch = () => {
                                     </Button>
                                     <Button
                                         className="flex-1 rounded-2xl font-black uppercase tracking-widest text-[10px] bg-slate-900 hover:bg-emerald-600 h-12"
-                                        onClick={() => navigate(`/patient/appointment-booking`, { state: { doctorId: doctor._id } })}
+                                        onClick={() =>
+                                            navigate(`/patient/booking/complaint`, {
+                                                state: { doctorId: doctor._id, doctorName: doctor.name },
+                                            })
+                                        }
                                     >
                                         Book Now
                                     </Button>

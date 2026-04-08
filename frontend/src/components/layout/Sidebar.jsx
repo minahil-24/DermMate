@@ -18,7 +18,8 @@ import {
   Camera,
   Heart,
   Building2,
-  Wallet
+  Wallet,
+  Send
 } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 import { useToastStore } from '../../store/toastStore'
@@ -74,7 +75,8 @@ const Sidebar = () => {
     { to: '/admin/verification', icon: Stethoscope, label: 'Verification' },
     { to: '/admin/ai-models', icon: Settings, label: 'AI Models' },
     { to: '/admin/reports', icon: FileText, label: 'Reports & Analytics' },
-    { to: '/admin/notifications', icon: Bell, label: 'Broadcast' },
+    { to: '/admin/alerts', icon: Bell, label: 'Notifications' },
+    { to: '/admin/notifications', icon: Send, label: 'Broadcast' },
     { to: '/admin/system-revenue', icon: Wallet, label: 'Revenue' },
 
   ]

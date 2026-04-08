@@ -179,7 +179,7 @@ const Onboarding = () => {
             const fullUrl = `${apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl}/api/auth/profile`;
             
             const response = await fetch(fullUrl, {
-                method: 'PUT',
+                method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`

@@ -6,6 +6,9 @@ const crypto = require('crypto');
 const sendEmail = require('../utils/sendEmail');
 const auth = require('../middleware/auth');
 const upload = require('../middleware/upload');
+const { syncCertificationFlags } = require('../utils/certHelpers');
+const { notifyUser, notifyAllAdmins } = require('../utils/notify');
+const { unlinkStoredFile } = require('../utils/uploadPaths');
 
 const router = express.Router();
 
@@ -115,54 +118,54 @@ router.get('/me', auth(), async (req, res) => {
   }
 });
 
-const fs = require('fs');
 const path = require('path');
+const backendRoot = path.join(__dirname, '..');
+
+function normalizeUploadRel(absPath) {
+  let rel = path.relative(backendRoot, absPath).replace(/\\/g, '/');
+  if (!rel || rel.startsWith('..')) {
+    rel = absPath.replace(/\\/g, '/');
+  }
+  return rel;
+}
 
 // ----------------------
-// UPDATE PROFILE (PUT /profile)
+// UPDATE PROFILE TEXT (PATCH /profile) — JSON only, MongoDB fields; no multer
 // ----------------------
-router.put('/profile', auth(), upload.fields([
-  { name: 'profilePhoto', maxCount: 1 },
-  { name: 'certifications', maxCount: 10 }
-]), async (req, res) => {
+router.patch('/profile', auth(), async (req, res) => {
   try {
-    const userId = req.user.id;
-    const user = await User.findById(userId);
+    const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    const updateData = { ...req.body };
+    const allow = [
+      'name', 'phoneNumber', 'location', 'gender', 'degree',
+      'specialty', 'clinicName', 'city', 'bio', 'availability',
+    ];
 
-    // Handle File Uploads
-    if (req.files) {
-      if (req.files.profilePhoto) {
-        updateData.profilePhoto = req.files.profilePhoto[0].path;
-      }
-      if (req.files.certifications) {
-        // Push new certifications to the existing array
-        const newCerts = req.files.certifications.map(f => f.path);
-        user.certifications = [...(user.certifications || []), ...newCerts];
-        user.isPendingVerification = true; // Mark as pending review
-      }
-    }
-
-    // Role-specific field mapping
-    if (updateData.age) updateData.age = parseInt(updateData.age);
-    if (updateData.experience) updateData.experience = parseInt(updateData.experience);
-    if (updateData.consultationFee) updateData.consultationFee = parseFloat(updateData.consultationFee);
-
-    // Update other fields
-    Object.keys(updateData).forEach(key => {
-      if (key !== 'certifications') {
-        user[key] = updateData[key];
+    allow.forEach((key) => {
+      if (req.body[key] !== undefined && req.body[key] !== null) {
+        user[key] = req.body[key];
       }
     });
 
+    if (req.body.onboardingCompleted !== undefined) {
+      user.onboardingCompleted = Boolean(req.body.onboardingCompleted);
+    }
+
+    if (req.body.age !== undefined && req.body.age !== '') {
+      user.age = parseInt(req.body.age, 10);
+    }
+    if (req.body.experience !== undefined && req.body.experience !== '') {
+      user.experience = parseInt(req.body.experience, 10);
+    }
+    if (req.body.consultationFee !== undefined && req.body.consultationFee !== '') {
+      user.consultationFee = parseFloat(req.body.consultationFee);
+    }
+
     await user.save();
-    
-    // Return full updated user (minus password)
+
     const userObj = user.toObject();
     delete userObj.password;
-
     res.json({ message: 'Profile updated', user: userObj });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -170,34 +173,78 @@ router.put('/profile', auth(), upload.fields([
 });
 
 // ----------------------
-// DELETE CERTIFICATION (DELETE /certifications/:index)
+// UPLOAD PROFILE FILES (POST /profile/files) — multer only; paths saved on User in MongoDB
 // ----------------------
-router.delete('/certifications/:index', auth(), async (req, res) => {
+router.post('/profile/files', auth(), upload.fields([
+  { name: 'profilePhoto', maxCount: 1 },
+  { name: 'certifications', maxCount: 10 },
+]), async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    const index = parseInt(req.params.index);
-    if (index < 0 || index >= user.certifications.length) {
-      return res.status(400).json({ message: 'Invalid certification index' });
+    if (!req.files || (!req.files.profilePhoto && !req.files.certifications)) {
+      return res.status(400).json({ message: 'No files uploaded' });
     }
 
-    const filePath = user.certifications[index];
-    
-    // 1. Remove from Array
-    user.certifications.splice(index, 1);
+    if (req.files.profilePhoto) {
+      user.profilePhoto = normalizeUploadRel(req.files.profilePhoto[0].path);
+    }
+
+    if (req.files.certifications) {
+      const newItems = req.files.certifications.map((f) => ({
+        filePath: normalizeUploadRel(f.path),
+        status: 'pending',
+        uploadedAt: new Date(),
+      }));
+      user.certifications = [...(user.certifications || []), ...newItems];
+      syncCertificationFlags(user);
+    }
+
     await user.save();
 
-    // 2. Physical File Deletion from Disk
-    try {
-      const fullPath = path.resolve(filePath);
-      if (fs.existsSync(fullPath)) {
-        fs.unlinkSync(fullPath);
+    if (req.files.certifications && user.role === 'dermatologist') {
+      try {
+        await notifyAllAdmins({
+          title: 'New certificate uploaded',
+          message: `${user.name} uploaded a new certificate for review.`,
+          link: '/admin/verification',
+          type: 'cert_upload',
+        });
+      } catch (e) {
+        console.error('notifyAllAdmins:', e);
       }
-    } catch (err) {
-      console.error("File deletion error:", err);
-      // We don't fail the request if file deletion fails, as DB is already updated
     }
+
+    const userObj = user.toObject();
+    delete userObj.password;
+    res.json({ message: 'Files uploaded', user: userObj });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// ----------------------
+// DELETE CERTIFICATION (DELETE /certifications/:certId)
+// ----------------------
+router.delete('/certifications/:certId', auth(), async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    const certId = String(req.params.certId || '').trim();
+    const idx = user.certifications.findIndex((c) => String(c._id) === certId);
+    if (idx === -1) {
+      return res.status(400).json({ message: 'Certification not found' });
+    }
+
+    const filePath = user.certifications[idx].filePath;
+
+    user.certifications.splice(idx, 1);
+    syncCertificationFlags(user);
+    await user.save();
+
+    unlinkStoredFile(filePath);
 
     const userObj = user.toObject();
     delete userObj.password;
@@ -206,6 +253,58 @@ router.delete('/certifications/:index', auth(), async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 });
+
+// ----------------------
+// ADMIN: SET CERTIFICATION STATUS (PATCH)
+// ----------------------
+router.patch(
+  '/admin/doctors/:doctorId/certifications/:certId',
+  auth(['admin']),
+  async (req, res) => {
+    try {
+      const { status } = req.body;
+      if (!['verified', 'rejected', 'pending'].includes(status)) {
+        return res.status(400).json({ message: 'Invalid status' });
+      }
+
+      const doctor = await User.findOne({
+        _id: req.params.doctorId,
+        role: 'dermatologist',
+      });
+      if (!doctor) return res.status(404).json({ message: 'Doctor not found' });
+
+      const cert = doctor.certifications.find(
+        (c) => c._id.toString() === req.params.certId
+      );
+      if (!cert) return res.status(404).json({ message: 'Certificate not found' });
+
+      const prevStatus = cert.status;
+      cert.status = status;
+      syncCertificationFlags(doctor);
+      await doctor.save();
+
+      if (prevStatus !== status && (status === 'verified' || status === 'rejected')) {
+        try {
+          const label = status === 'verified' ? 'accepted' : 'declined';
+          await notifyUser(doctor._id, {
+            title: `Certificate ${label}`,
+            message: `Your certificate "${path.basename(cert.filePath)}" was ${label} by an administrator.`,
+            link: '/dermatologist/certification',
+            type: 'cert_review',
+          });
+        } catch (e) {
+          console.error('notifyUser doctor:', e);
+        }
+      }
+
+      const doctorObj = doctor.toObject();
+      delete doctorObj.password;
+      res.json({ message: 'Certificate updated', doctor: doctorObj });
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  }
+);
 
 // ----------------------
 // GET SINGLE USER (PUBLIC/PROTECTED)
@@ -246,7 +345,10 @@ router.get('/stats', auth(['admin']), async (req, res) => {
 // ----------------------
 router.get('/doctors', async (req, res) => {
   try {
-    const doctors = await User.find({ role: 'dermatologist' }).select('-password');
+    const doctors = await User.find({ role: 'dermatologist' })
+      .select('-password')
+      .sort({ name: 1 })
+      .lean();
     res.json(doctors);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -270,12 +372,16 @@ router.get('/users', auth(['admin']), async (req, res) => {
 // ----------------------
 router.patch('/verify-doctor/:id', auth(['admin']), async (req, res) => {
   try {
-    const doctor = await User.findByIdAndUpdate(req.params.id, { 
-      isDoctorVerified: true,
-      isPendingVerification: false 
-    }, { new: true });
+    const doctor = await User.findById(req.params.id);
     if (!doctor) return res.status(404).json({ message: 'Doctor not found' });
-    res.json({ message: 'Doctor verified successfully', doctor });
+    (doctor.certifications || []).forEach((c) => {
+      if (c.status === 'pending') c.status = 'verified';
+    });
+    syncCertificationFlags(doctor);
+    await doctor.save();
+    const doctorObj = doctor.toObject();
+    delete doctorObj.password;
+    res.json({ message: 'Doctor verified successfully', doctor: doctorObj });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
