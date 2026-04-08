@@ -11,6 +11,7 @@ import { useToastStore } from '../../store/toastStore'
 const Questionnaire = () => {
   const location = useLocation()
   const complaintType = location.state?.complaintType || 'hair'
+  const dermatologistId = location.state?.dermatologistId || null
   const navigate = useNavigate()
   const { register, handleSubmit, formState: { errors }, watch } = useForm()
   const [currentStep, setCurrentStep] = useState(1)
@@ -73,7 +74,7 @@ const Questionnaire = () => {
       title: 'Questionnaire Submitted',
       message: 'Your responses have been saved. Proceeding to image upload...',
     })
-    navigate('/patient/upload', { state: { complaintType, questionnaireData: data } })
+    navigate('/patient/upload', { state: { complaintType, dermatologistId, questionnaireData: data } })
   }
 
   const currentStepData = steps[currentStep - 1]

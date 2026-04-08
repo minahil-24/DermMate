@@ -12,6 +12,9 @@ const ImageUpload = () => {
   const location = useLocation()
   const navigate = useNavigate()
   const addToast = useToastStore((state) => state.addToast)
+  const complaintType = location.state?.complaintType
+  const dermatologistId = location.state?.dermatologistId || null
+  const questionnaireData = location.state?.questionnaireData || null
   const [uploadedImages, setUploadedImages] = useState({})
   const [dragActive, setDragActive] = useState(false)
 
@@ -61,7 +64,9 @@ const ImageUpload = () => {
 
   const handleContinue = () => {
     if (allAnglesUploaded) {
-      navigate('/patient/ai-detection', { state: { images: uploadedImages } })
+      navigate('/patient/ai-detection', {
+        state: { images: uploadedImages, complaintType, dermatologistId, questionnaireData },
+      })
     } else {
       addToast({
         type: 'warning',

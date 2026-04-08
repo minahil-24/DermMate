@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Search, MapPin, Star, Calendar, Clock, Info, BadgeCheck, Map } from 'lucide-react'
@@ -7,73 +7,71 @@ import Button from '../../components/ui/Button'
 import Breadcrumbs from '../../components/common/Breadcrumbs'
 import { debounce } from '../../utils/helpers'
 
-const mockDermatologists = [
-  {
-    id: '1',
-    name: 'Dr. Ayesha Khan',
-    specialization: 'Cosmetic Dermatology',
-    rating: 4.9,
-    totalReviews: 210,
-    experience: 11,
-    fee: 3000,
-    availability: 'Today',
-    mode: 'Physical + Online',
-    hospital: 'Ziauddin Hospital',
-    location: { city: 'Karachi', area: 'Clifton' },
-    avatar: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=200',
-  },
-  {
-    id: '2',
-    name: 'Dr. Hamza Malik',
-    specialization: 'Medical Dermatology',
-    rating: 4.8,
-    totalReviews: 180,
-    experience: 14,
-    fee: 2500,
-    availability: 'Tomorrow',
-    mode: 'Physical',
-    hospital: 'Shaukat Khanum',
-    location: { city: 'Lahore', area: 'Gulberg' },
-    avatar: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&q=80&w=200',
-  },
-  {
-    id: '3',
-    name: 'Dr. Zainab Noor',
-    specialization: 'Pediatric Dermatology',
-    rating: 4.7,
-    totalReviews: 140,
-    experience: 9,
-    fee: 2000,
-    availability: 'Today',
-    mode: 'Online',
-    hospital: 'Shifa International',
-    location: { city: 'Islamabad', area: 'F-7' },
-    avatar: 'https://images.unsplash.com/photo-1594824476967-48c8b964273f?auto=format&fit=crop&q=80&w=200',
-  },
-]
-
 const cityFilters = ['All', 'Karachi', 'Lahore', 'Islamabad']
+
+const getToken = () => {
+  try {
+    const raw = localStorage.getItem('auth-storage')
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    return parsed?.state?.token || null
+  } catch {
+    return null
+  }
+}
 
 const DermatologistSearch = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [activeCity, setActiveCity] = useState('All')
-  const [filteredDermatologists, setFilteredDermatologists] = useState(mockDermatologists)
+  const [filteredDermatologists, setFilteredDermatologists] = useState([])
+  const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
 
-  const handleSearch = debounce((value, city) => {
-    let filtered = mockDermatologists.filter(
-      (doc) =>
-        doc.name.toLowerCase().includes(value.toLowerCase()) ||
-        doc.specialization.toLowerCase().includes(value.toLowerCase()) ||
-        doc.location.city.toLowerCase().includes(value.toLowerCase())
-    )
+  const fetchDoctors = async (value, city) => {
+    setLoading(true)
+    try {
+      const token = getToken()
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000'
+      const params = new URLSearchParams()
+      if (value) params.set('search', value)
+      if (city && city !== 'All') params.set('city', city)
 
-    if (city !== 'All') {
-      filtered = filtered.filter((doc) => doc.location.city === city)
+      const res = await fetch(`${apiUrl}/api/doctors?${params.toString()}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.message || 'Failed to load doctors')
+
+      // Add some UI-only defaults (backend returns real data for identity/fields)
+      const normalized = (data.doctors || []).map((d) => ({
+        ...d,
+        rating: 4.8,
+        totalReviews: 100,
+        fee: 2500,
+        availability: 'Available',
+        mode: 'Physical + Online',
+        hospital: d.clinicName || 'Clinic',
+        avatar:
+          'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=200',
+      }))
+
+      setFilteredDermatologists(normalized)
+    } catch (e) {
+      setFilteredDermatologists([])
+      // keep UI silent; toast system exists but not necessary for search
+      console.error(e)
+    } finally {
+      setLoading(false)
     }
+  }
 
-    setFilteredDermatologists(filtered)
-  }, 300)
+  const handleSearch = debounce((value, city) => {
+    fetchDoctors(value, city)
+  }, 350)
+
+  useEffect(() => {
+    fetchDoctors('', activeCity)
+  }, [activeCity])
 
   const handleSearchChange = (e) => {
     const value = e.target.value
@@ -86,9 +84,9 @@ const DermatologistSearch = () => {
     handleSearch(searchTerm, city)
   }
 
- const handleBookAppointment = () => {
-  navigate('/patient/complaint')
-}
+  const handleBookAppointment = (dermatologistId) => {
+    navigate('/patient/complaint', { state: { dermatologistId } })
+  }
 
   return (
     <div className="min-h-screen bg-[#FDFDFD] p-6 md:p-12 text-slate-900">
@@ -153,6 +151,10 @@ const DermatologistSearch = () => {
         <h2 className="text-xl font-bold">Recommended Dermatologists</h2>
       </div>
 
+      {loading && (
+        <div className="text-sm text-slate-500 mb-4">Loading doctors...</div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredDermatologists.map((dermatologist, index) => (
           <motion.div
@@ -186,7 +188,7 @@ const DermatologistSearch = () => {
               <div className="bg-slate-50 p-4 rounded-2xl space-y-2 mb-4">
                 <div className="flex items-center gap-2 text-xs">
                   <MapPin className="w-3 h-3 text-emerald-500" />
-                  {dermatologist.location.area}, {dermatologist.location.city}
+                  {dermatologist.location || 'Location not provided'}
                 </div>
                 <div className="flex items-center gap-2 text-xs">
                   <Clock className="w-3 h-3 text-emerald-500" />

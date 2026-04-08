@@ -8,6 +8,17 @@ import Breadcrumbs from '../../components/common/Breadcrumbs'
 import LoadingSpinner from '../../components/common/LoadingSpinner'
 import { useToastStore } from '../../store/toastStore'
 
+const getToken = () => {
+  try {
+    const raw = localStorage.getItem('auth-storage')
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    return parsed?.state?.token || null
+  } catch {
+    return null
+  }
+}
+
 const AIDetection = () => {
   const location = useLocation()
   const navigate = useNavigate()
@@ -42,22 +53,64 @@ const AIDetection = () => {
   }, [])
 
 
-const handleContinue = () => {
-  // Get the dermatologist name from location state (if passed)
-  const dermatologistName = location.state?.dermatologistName || 'the dermatologist';
+  const handleContinue = async () => {
+    const dermatologistId = location.state?.dermatologistId
+    const complaintType = location.state?.complaintType
+    const questionnaireData = location.state?.questionnaireData || {}
+    const imagesObj = location.state?.images || {}
 
-  // Show toast notification
-  addToast({
-    type: 'success',
-    title: 'Appointment Submitted',
-    message: `Your appointment request has been submitted to ${dermatologistName}.`,
-  });
+    if (!dermatologistId) {
+      addToast({
+        type: 'warning',
+        title: 'Select a Doctor',
+        message: 'Please choose a dermatologist before submitting your case.',
+      })
+      navigate('/patient/dermatologists')
+      return
+    }
 
-  // Navigate to Dermatologists page after 1 second
-  setTimeout(() => {
-    navigate('/patient/dermatologists');
-  }, 1000);
-}
+    try {
+      const token = getToken()
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000'
+
+      const questionnaire = Object.entries(questionnaireData).map(([k, v]) => ({
+        question: k,
+        answer: String(v ?? ''),
+      }))
+
+      const form = new FormData()
+      form.append('dermatologistId', dermatologistId)
+      if (complaintType) form.append('complaintType', complaintType)
+      form.append('questionnaire', JSON.stringify(questionnaire))
+
+      // Attach images (real files) from the multi-angle uploader
+      Object.values(imagesObj).forEach((img) => {
+        if (img?.file) form.append('images', img.file)
+      })
+
+      const res = await fetch(`${apiUrl}/api/appointments`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: form,
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.message || 'Failed to submit appointment')
+
+      addToast({
+        type: 'success',
+        title: 'Appointment Submitted',
+        message: 'Your appointment request has been submitted to the dermatologist.',
+      })
+
+      navigate('/patient/appointments')
+    } catch (e) {
+      addToast({
+        type: 'error',
+        title: 'Submit Failed',
+        message: e.message,
+      })
+    }
+  }
 
   return (
     <div>
@@ -146,11 +199,11 @@ const handleContinue = () => {
             </div>
           </div>
 
-         <div className="flex justify-end">
-  <Button onClick={handleContinue} size="lg">
-    Submit to Dermatologist
-  </Button>
-</div>
+          <div className="flex justify-end">
+            <Button onClick={handleContinue} size="lg">
+              Submit to Dermatologist
+            </Button>
+          </div>
 
         </div>
       ) : null}

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Scissors, Heart, Hand } from 'lucide-react'
 
@@ -11,6 +11,8 @@ import Breadcrumbs from '../../components/common/Breadcrumbs'
 const ComplaintSelection = () => {
   const [selectedType, setSelectedType] = useState(null)
   const navigate = useNavigate()
+  const location = useLocation()
+  const dermatologistId = location.state?.dermatologistId || null
 
   const complaintTypes = [
     {
@@ -43,9 +45,9 @@ const ComplaintSelection = () => {
   const handleContinue = () => {
     if (selectedType) {
       if (selectedType === 'hair') {
-        navigate('/patient/alopecia-detection', { state: { complaintType: selectedType } })
+        navigate('/patient/alopecia-detection', { state: { complaintType: selectedType, dermatologistId } })
       } else {
-        navigate('/patient/questionnaire', { state: { complaintType: selectedType } })
+        navigate('/patient/questionnaire', { state: { complaintType: selectedType, dermatologistId } })
       }
     }
   }
