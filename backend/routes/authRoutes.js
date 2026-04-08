@@ -161,6 +161,10 @@ router.patch('/profile', auth(), async (req, res) => {
     if (req.body.consultationFee !== undefined && req.body.consultationFee !== '') {
       user.consultationFee = parseFloat(req.body.consultationFee);
     }
+    if (req.body.availabilitySlots !== undefined) {
+      const slots = Array.isArray(req.body.availabilitySlots) ? req.body.availabilitySlots : []
+      user.availabilitySlots = slots.map(String)
+    }
 
     await user.save();
 

@@ -9,7 +9,58 @@ const affectedEntry = {
   filePath: { type: String, required: true },
   originalName: { type: String, default: '' },
   complaintType: { type: String, enum: ['skin', 'hair', 'nails'], required: true },
+  uploadedAt: { type: Date, default: Date.now },
 }
+
+const noteEntry = new mongoose.Schema(
+  {
+    text: { type: String, required: true },
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    createdAt: { type: Date, default: Date.now },
+  },
+  { _id: true }
+)
+
+const reportEntry = new mongoose.Schema(
+  {
+    title: { type: String, required: true },
+    description: { type: String, default: '' },
+    filePath: { type: String, default: '' },
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    createdAt: { type: Date, default: Date.now },
+  },
+  { _id: true }
+)
+
+const comparisonEntry = new mongoose.Schema(
+  {
+    beforePath: { type: String, required: true },
+    afterPath: { type: String, required: true },
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    createdAt: { type: Date, default: Date.now },
+  },
+  { _id: true }
+)
+
+const followUpEntry = new mongoose.Schema(
+  {
+    date: { type: Date, required: true },
+    timeSlot: { type: String, required: true },
+    reason: { type: String, default: 'Follow-up' },
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    createdAt: { type: Date, default: Date.now },
+  },
+  { _id: true }
+)
+
+const treatmentMedication = new mongoose.Schema(
+  {
+    name: { type: String, required: true },
+    dosage: { type: String, default: '' },
+    duration: { type: String, default: '' },
+  },
+  { _id: false }
+)
 
 const caseSchema = new mongoose.Schema(
   {
@@ -32,6 +83,20 @@ const caseSchema = new mongoose.Schema(
       default: 'pending',
     },
     isCancelledByPatient: { type: Boolean, default: false },
+
+    /** Dermatologist workspace */
+    clinicalNotes: { type: [noteEntry], default: [] },
+    reports: { type: [reportEntry], default: [] },
+    comparisons: { type: [comparisonEntry], default: [] },
+    followUps: { type: [followUpEntry], default: [] },
+
+    treatmentPlan: {
+      medications: { type: [treatmentMedication], default: [] },
+      lifestyle: { type: [String], default: [] },
+      notes: { type: String, default: '' },
+      updatedAt: { type: Date, default: null },
+      updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    },
   },
   { timestamps: true }
 )

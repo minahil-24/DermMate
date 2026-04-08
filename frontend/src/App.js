@@ -48,6 +48,7 @@ import FollowUpScheduling from './pages/Dermatologist/FollowUpScheduling'
 import DermatologistNotifications from './pages/Dermatologist/DermatologistNotifications'
 import DermatologistProfile from './pages/Dermatologist/DermatologistProfile'
 import PatientChat from './pages/Dermatologist/PatientChat'
+import DermatologistFees from './pages/Dermatologist/DermatologistFees'
 
 // Admin Pages
 import AdminDashboard from './pages/admin/AdminDashboard'
@@ -386,6 +387,14 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={['dermatologist']}>
                 <DermatologistProfile />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dermatologist/fees"
+            element={
+              <ProtectedRoute allowedRoles={['dermatologist']}>
+                <DermatologistFees />
               </ProtectedRoute>
             }
           />

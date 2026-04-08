@@ -45,6 +45,7 @@ const userSchema = new mongoose.Schema({
   bio: String,
   consultationFee: Number,
   availability: String,
+  availabilitySlots: { type: [String], default: [] },
   certifications: { type: [certificationSchema], default: [] },
   isDoctorVerified: {
     type: Boolean,

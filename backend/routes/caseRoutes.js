@@ -5,6 +5,7 @@ const MedicalCase = require('../models/Case')
 const User = require('../models/User')
 const auth = require('../middleware/auth')
 const upload = require('../middleware/caseUpload')
+const doctorUpload = require('../middleware/caseDoctorUpload')
 const { notifyUser } = require('../utils/notify')
 
 const router = express.Router()
@@ -144,6 +145,211 @@ router.get('/doctor/incoming', auth(['dermatologist']), async (req, res) => {
       .sort({ createdAt: -1 })
       .lean()
     res.json(list)
+  } catch (error) {
+    res.status(500).json({ message: error.message })
+  }
+})
+
+// Case details (patient or assigned dermatologist)
+router.get('/:caseId', auth(['patient', 'dermatologist']), async (req, res) => {
+  try {
+    const caseId = String(req.params.caseId || '').trim()
+    if (!caseId || !mongoose.Types.ObjectId.isValid(caseId)) {
+      return res.status(400).json({ message: 'Invalid case id' })
+    }
+
+    const c = await MedicalCase.findById(caseId)
+      .populate('patient', 'name email profilePhoto phoneNumber location age gender')
+      .populate('doctor', 'name email specialty profilePhoto consultationFee')
+      .lean()
+
+    if (!c) return res.status(404).json({ message: 'Case not found' })
+
+    const uid = String(req.user.id)
+    if (req.user.role === 'patient' && String(c.patient?._id || c.patient) !== uid) {
+      return res.status(403).json({ message: 'Not authorized for this case' })
+    }
+    if (req.user.role === 'dermatologist' && String(c.doctor?._id || c.doctor) !== uid) {
+      return res.status(403).json({ message: 'Not authorized for this case' })
+    }
+
+    res.json(c)
+  } catch (error) {
+    res.status(500).json({ message: error.message })
+  }
+})
+
+// Doctor upload (reports/comparisons attachments)
+router.post('/:caseId/doctor-upload', auth(['dermatologist']), doctorUpload.single('file'), async (req, res) => {
+  try {
+    const caseId = String(req.params.caseId || '').trim()
+    if (!caseId || !mongoose.Types.ObjectId.isValid(caseId)) {
+      return res.status(400).json({ message: 'Invalid case id' })
+    }
+    const c = await MedicalCase.findById(caseId).lean()
+    if (!c) return res.status(404).json({ message: 'Case not found' })
+    if (String(c.doctor) !== String(req.user.id)) {
+      return res.status(403).json({ message: 'Not authorized for this case' })
+    }
+    if (!req.file) return res.status(400).json({ message: 'No file uploaded' })
+
+    const filePath = relPath(req.file.path)
+    res.json({ filePath, originalName: req.file.originalname || '' })
+  } catch (error) {
+    res.status(500).json({ message: error.message })
+  }
+})
+
+router.post('/:caseId/notes', auth(['dermatologist']), async (req, res) => {
+  try {
+    const { text } = req.body
+    if (!text || !String(text).trim()) {
+      return res.status(400).json({ message: 'text is required' })
+    }
+
+    const c = await MedicalCase.findById(req.params.caseId)
+    if (!c) return res.status(404).json({ message: 'Case not found' })
+    if (String(c.doctor) !== String(req.user.id)) {
+      return res.status(403).json({ message: 'Not authorized for this case' })
+    }
+
+    c.clinicalNotes = c.clinicalNotes || []
+    c.clinicalNotes.unshift({ text: String(text).trim(), createdBy: req.user.id })
+    await c.save()
+    res.json({ message: 'Note added' })
+  } catch (error) {
+    res.status(500).json({ message: error.message })
+  }
+})
+
+router.post('/:caseId/reports', auth(['dermatologist']), async (req, res) => {
+  try {
+    const { title, description = '', filePath = '' } = req.body
+    if (!title || !String(title).trim()) {
+      return res.status(400).json({ message: 'title is required' })
+    }
+
+    const c = await MedicalCase.findById(req.params.caseId)
+    if (!c) return res.status(404).json({ message: 'Case not found' })
+    if (String(c.doctor) !== String(req.user.id)) {
+      return res.status(403).json({ message: 'Not authorized for this case' })
+    }
+
+    c.reports = c.reports || []
+    c.reports.unshift({
+      title: String(title).trim(),
+      description: String(description || ''),
+      filePath: String(filePath || ''),
+      createdBy: req.user.id,
+    })
+    await c.save()
+    res.json({ message: 'Report added' })
+  } catch (error) {
+    res.status(500).json({ message: error.message })
+  }
+})
+
+router.post('/:caseId/comparisons', auth(['dermatologist']), async (req, res) => {
+  try {
+    const { beforePath, afterPath } = req.body
+    if (!beforePath || !afterPath) {
+      return res.status(400).json({ message: 'beforePath and afterPath are required' })
+    }
+
+    const c = await MedicalCase.findById(req.params.caseId)
+    if (!c) return res.status(404).json({ message: 'Case not found' })
+    if (String(c.doctor) !== String(req.user.id)) {
+      return res.status(403).json({ message: 'Not authorized for this case' })
+    }
+
+    c.comparisons = c.comparisons || []
+    c.comparisons.unshift({ beforePath, afterPath, createdBy: req.user.id })
+    await c.save()
+    res.json({ message: 'Comparison added' })
+  } catch (error) {
+    res.status(500).json({ message: error.message })
+  }
+})
+
+router.post('/:caseId/followups', auth(['dermatologist']), async (req, res) => {
+  try {
+    const { date, timeSlot, reason = 'Follow-up' } = req.body
+    if (!date || !timeSlot) {
+      return res.status(400).json({ message: 'date and timeSlot are required' })
+    }
+
+    const c = await MedicalCase.findById(req.params.caseId)
+    if (!c) return res.status(404).json({ message: 'Case not found' })
+    if (String(c.doctor) !== String(req.user.id)) {
+      return res.status(403).json({ message: 'Not authorized for this case' })
+    }
+
+    c.followUps = c.followUps || []
+    c.followUps.unshift({
+      date: new Date(date),
+      timeSlot: String(timeSlot),
+      reason: String(reason || 'Follow-up'),
+      createdBy: req.user.id,
+    })
+    await c.save()
+
+    try {
+      await notifyUser(c.patient, {
+        title: 'Follow-up scheduled',
+        message: `Your dermatologist scheduled a follow-up on ${new Date(date).toDateString()} at ${timeSlot}.`,
+        link: '/patient/appointments',
+        type: 'followup_scheduled',
+      })
+    } catch (e) {
+      console.error('notify followup:', e)
+    }
+
+    res.json({ message: 'Follow-up scheduled' })
+  } catch (error) {
+    res.status(500).json({ message: error.message })
+  }
+})
+
+router.put('/:caseId/treatment-plan', auth(['dermatologist']), async (req, res) => {
+  try {
+    const { medications = [], lifestyle = [], notes = '' } = req.body || {}
+
+    const c = await MedicalCase.findById(req.params.caseId)
+    if (!c) return res.status(404).json({ message: 'Case not found' })
+    if (String(c.doctor) !== String(req.user.id)) {
+      return res.status(403).json({ message: 'Not authorized for this case' })
+    }
+
+    const meds = Array.isArray(medications) ? medications : []
+    const life = Array.isArray(lifestyle) ? lifestyle : []
+
+    c.treatmentPlan = {
+      medications: meds
+        .filter((m) => m && m.name)
+        .map((m) => ({
+          name: String(m.name),
+          dosage: String(m.dosage || ''),
+          duration: String(m.duration || ''),
+        })),
+      lifestyle: life.map(String),
+      notes: String(notes || ''),
+      updatedAt: new Date(),
+      updatedBy: req.user.id,
+    }
+    await c.save()
+
+    try {
+      await notifyUser(c.patient, {
+        title: 'Treatment plan updated',
+        message: 'Your dermatologist updated your treatment plan.',
+        link: '/patient/treatment',
+        type: 'treatment_plan',
+      })
+    } catch (e) {
+      console.error('notify treatment plan:', e)
+    }
+
+    res.json({ message: 'Treatment plan saved' })
   } catch (error) {
     res.status(500).json({ message: error.message })
   }

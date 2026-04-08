@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { Calendar, Clock, Banknote, CreditCard, Loader2 } from 'lucide-react'
 import axios from 'axios'
@@ -7,22 +7,6 @@ import Button from '../../components/ui/Button'
 import Breadcrumbs from '../../components/common/Breadcrumbs'
 import { formatTime } from '../../utils/helpers'
 import { mergeBooking, loadBooking } from '../../utils/bookingFlow'
-
-const TIME_SLOTS = [
-  '09:00',
-  '09:30',
-  '10:00',
-  '10:30',
-  '11:00',
-  '11:30',
-  '12:00',
-  '14:00',
-  '14:30',
-  '15:00',
-  '15:30',
-  '16:00',
-  '16:30',
-]
 
 const BookingSchedule = () => {
   const navigate = useNavigate()
@@ -64,6 +48,11 @@ const BookingSchedule = () => {
   })
 
   const fee = doctor?.consultationFee || 0
+  const availableSlots = useMemo(() => {
+    const s = doctor?.availabilitySlots
+    if (Array.isArray(s) && s.length) return s
+    return []
+  }, [doctor])
 
   const goReview = () => {
     if (!selectedDate || !selectedTime) return
@@ -161,25 +150,31 @@ const BookingSchedule = () => {
           <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
             <Clock className="w-5 h-5" /> Time
           </h3>
-          <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto">
-            {TIME_SLOTS.map((time) => (
-              <button
-                key={time}
-                type="button"
-                onClick={() => setSelectedTime(time)}
-                disabled={!selectedDate}
-                className={`p-3 rounded-lg text-center text-sm ${
-                  !selectedDate
-                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                    : selectedTime === time
-                      ? 'bg-emerald-600 text-white'
-                      : 'bg-gray-100 hover:bg-gray-200 text-gray-900'
-                }`}
-              >
-                {formatTime(time)}
-              </button>
-            ))}
-          </div>
+          {availableSlots.length === 0 ? (
+            <div className="text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-lg p-4">
+              This dermatologist has not set availability slots yet.
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto">
+              {availableSlots.map((time) => (
+                <button
+                  key={time}
+                  type="button"
+                  onClick={() => setSelectedTime(time)}
+                  disabled={!selectedDate}
+                  className={`p-3 rounded-lg text-center text-sm ${
+                    !selectedDate
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : selectedTime === time
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-gray-100 hover:bg-gray-200 text-gray-900'
+                  }`}
+                >
+                  {formatTime(time)}
+                </button>
+              ))}
+            </div>
+          )}
         </Card>
       </div>
 
@@ -232,7 +227,7 @@ const BookingSchedule = () => {
         <Button
           size="lg"
           onClick={goReview}
-          disabled={!selectedDate || !selectedTime}
+          disabled={!selectedDate || !selectedTime || availableSlots.length === 0}
         >
           Review & submit
         </Button>

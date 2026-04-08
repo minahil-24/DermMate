@@ -1,18 +1,62 @@
 import { motion } from 'framer-motion'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Calendar, Briefcase, Bell, TrendingUp, Clock, CheckCircle } from 'lucide-react'
+import { Calendar, Briefcase, Bell, TrendingUp, CheckCircle, Loader2 } from 'lucide-react'
+import axios from 'axios'
 import Card from '../../components/ui/Card'
 import Breadcrumbs from '../../components/common/Breadcrumbs'
-import { mockAppointments } from '../../mock-data/appointments'
-import { mockCases } from '../../mock-data/cases'
-import { mockNotifications } from '../../mock-data/notifications'
 import { formatDate } from '../../utils/helpers'
+import { useAuthStore } from '../../store/authStore'
 
 const PatientDashboard = () => {
   const navigate = useNavigate()
-  const upcomingAppointments = mockAppointments.filter(apt => apt.status === 'confirmed' || apt.status === 'pending')
-  const activeCases = mockCases.filter(c => c.status === 'active')
-  const unreadNotifications = mockNotifications.filter(n => !n.read).length
+  const { token } = useAuthStore()
+  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000'
+
+  const [loading, setLoading] = useState(true)
+  const [cases, setCases] = useState([])
+  const [notifications, setNotifications] = useState([])
+
+  useEffect(() => {
+    const load = async () => {
+      if (!token) return
+      try {
+        setLoading(true)
+        const [casesRes, notifRes] = await Promise.all([
+          axios.get(`${apiUrl}/api/cases/my`, { headers: { Authorization: `Bearer ${token}` } }),
+          axios.get(`${apiUrl}/api/notifications`, { headers: { Authorization: `Bearer ${token}` } }),
+        ])
+        setCases(casesRes.data || [])
+        setNotifications(notifRes.data || [])
+      } catch {
+        setCases([])
+        setNotifications([])
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [token, apiUrl])
+
+  const unreadNotifications = useMemo(
+    () => notifications.filter((n) => !n.read).length,
+    [notifications]
+  )
+
+  const upcomingAppointments = useMemo(() => {
+    const now = new Date()
+    return (cases || [])
+      .filter((c) => !c.isCancelledByPatient)
+      .filter((c) => c.appointmentDate && new Date(c.appointmentDate) >= now)
+      .sort((a, b) => new Date(a.appointmentDate) - new Date(b.appointmentDate))
+  }, [cases])
+
+  const activeCases = useMemo(() => {
+    return (cases || []).filter((c) => !c.isCancelledByPatient && c.doctorReviewStatus !== 'rejected')
+  }, [cases])
+
+  // Treatment progress: backend currently has no treatment fields/models; show 0% unless you add fields.
+  const treatmentProgressPct = 0
 
   const stats = [
     {
@@ -20,28 +64,28 @@ const PatientDashboard = () => {
       value: activeCases.length,
       icon: Briefcase,
       color: 'bg-emerald-500',
-      change: '+2 this month',
+      change: activeCases.length ? 'Your current open requests' : 'No open cases',
     },
     {
       label: 'Upcoming Appointments',
       value: upcomingAppointments.length,
       icon: Calendar,
       color: 'bg-blue-500',
-      change: 'Next: Dec 20',
+      change: upcomingAppointments[0]?.appointmentDate ? `Next: ${formatDate(upcomingAppointments[0].appointmentDate)}` : 'No upcoming',
     },
     {
       label: 'Unread Notifications',
       value: unreadNotifications,
       icon: Bell,
       color: 'bg-yellow-500',
-      change: '3 new today',
+      change: unreadNotifications ? 'Check your inbox' : 'All caught up',
     },
     {
       label: 'Treatment Progress',
-      value: '75%',
+      value: `${treatmentProgressPct}%`,
       icon: TrendingUp,
       color: 'bg-teal-500',
-      change: '+5% this week',
+      change: 'Starts when treatment begins',
     },
   ]
 
@@ -82,9 +126,14 @@ const PatientDashboard = () => {
         })}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {loading ? (
+        <div className="flex justify-center py-16">
+          <Loader2 className="w-10 h-10 animate-spin text-emerald-500" />
+        </div>
+      ) : (
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Upcoming Appointments */}
-        <Card>
+        <Card className="lg:col-span-1">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold text-gray-900">Upcoming Appointments</h2>
             <button onClick={() => navigate('/patient/appointments')} className="text-sm text-emerald-600 hover:text-emerald-700">
@@ -94,23 +143,25 @@ const PatientDashboard = () => {
           <div className="space-y-3">
             {upcomingAppointments.slice(0, 3).map((apt) => (
               <div
-                key={apt.id}
+                key={apt._id}
                 className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
               >
                 <div>
-                  <p className="font-medium text-gray-900">{apt.dermatologistName}</p>
+                  <p className="font-medium text-gray-900">{apt.doctor?.name || 'Dermatologist'}</p>
                   <p className="text-sm text-gray-600">
-                    {formatDate(apt.date)} at {apt.time}
+                    {formatDate(apt.appointmentDate)} at {apt.appointmentTimeSlot || '—'}
                   </p>
                 </div>
                 <span
                   className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    apt.status === 'confirmed'
+                    apt.doctorReviewStatus === 'accepted'
                       ? 'bg-emerald-100 text-emerald-700'
-                      : 'bg-yellow-100 text-yellow-700'
+                      : apt.doctorReviewStatus === 'rejected'
+                        ? 'bg-red-100 text-red-700'
+                        : 'bg-yellow-100 text-yellow-700'
                   }`}
                 >
-                  {apt.status}
+                  {apt.isCancelledByPatient ? 'cancelled' : (apt.doctorReviewStatus || 'pending')}
                 </span>
               </div>
             ))}
@@ -121,7 +172,7 @@ const PatientDashboard = () => {
         </Card>
 
         {/* Active Cases */}
-        <Card>
+        <Card className="lg:col-span-1">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold text-gray-900">Active Cases</h2>
             <button onClick={() => navigate('/patient/cases')} className="text-sm text-emerald-600 hover:text-emerald-700">
@@ -131,15 +182,15 @@ const PatientDashboard = () => {
           <div className="space-y-3">
             {activeCases.slice(0, 3).map((caseItem) => (
               <div
-                key={caseItem.id}
+                key={caseItem._id}
                 className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
               >
                 <div>
                   <p className="font-medium text-gray-900 capitalize">
-                    {caseItem.complaintType} - {caseItem.complaintSubtype}
+                    {caseItem.complaintType}
                   </p>
                   <p className="text-sm text-gray-600">
-                    Started {formatDate(caseItem.createdAt)}
+                    Submitted {formatDate(caseItem.createdAt)}
                   </p>
                 </div>
                 <CheckCircle className="w-5 h-5 text-emerald-600" />
@@ -150,7 +201,37 @@ const PatientDashboard = () => {
             )}
           </div>
         </Card>
+
+        {/* Recent Notifications */}
+        <Card className="lg:col-span-1">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold text-gray-900">Recent Notifications</h2>
+            <button
+              onClick={() => navigate('/patient/notifications')}
+              className="text-sm text-emerald-600 hover:text-emerald-700"
+            >
+              View all
+            </button>
+          </div>
+          <div className="space-y-3">
+            {notifications.slice(0, 3).map((n) => (
+              <div
+                key={n._id}
+                className={`p-3 rounded-lg border transition-colors ${
+                  n.read ? 'bg-white border-gray-200' : 'bg-emerald-50 border-emerald-200'
+                }`}
+              >
+                <p className="font-medium text-gray-900">{n.title}</p>
+                <p className="text-sm text-gray-600 line-clamp-2">{n.message}</p>
+              </div>
+            ))}
+            {notifications.length === 0 && (
+              <p className="text-center text-gray-500 py-4">No notifications</p>
+            )}
+          </div>
+        </Card>
       </div>
+      )}
     </div>
   )
 }
