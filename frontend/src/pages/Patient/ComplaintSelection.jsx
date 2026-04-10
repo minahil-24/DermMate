@@ -7,7 +7,7 @@ import { Scissors, Heart, Hand } from 'lucide-react'
 import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
 import Breadcrumbs from '../../components/common/Breadcrumbs'
-import { mergeBooking } from '../../utils/bookingFlow'
+import { mergeBooking, loadBooking, redirectDraftResubmitToSchedule } from '../../utils/bookingFlow'
 
 const ComplaintSelection = () => {
   const [selectedType, setSelectedType] = useState(null)
@@ -16,10 +16,13 @@ const ComplaintSelection = () => {
   const isBooking = location.pathname.includes('/patient/booking/')
 
   useEffect(() => {
-    if (isBooking && !location.state?.doctorId) {
-      navigate('/patient/dermatologists', { replace: true })
+    if (!isBooking) return
+    const b = loadBooking()
+    if (redirectDraftResubmitToSchedule(navigate, location)) return
+    if (!location.state?.doctorId && !b.doctorId) {
+      navigate('/patient/dermatologists', { replace: true, state: b.draftCaseId ? { draftCaseId: b.draftCaseId } : undefined })
     }
-  }, [isBooking, location.state, navigate])
+  }, [isBooking, location, navigate])
 
   const complaintTypes = [
     {

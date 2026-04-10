@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
-import { Calendar, User, Loader2, CreditCard } from 'lucide-react'
+import { Calendar, User, Loader2, CreditCard, FileEdit, AlertCircle } from 'lucide-react'
 import axios from 'axios'
 import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
@@ -37,8 +37,17 @@ const PatientCases = () => {
 
   const payLabel = (c) => {
     if (c.paymentStatus === 'paid') return 'Paid'
-    if (c.paymentMethod === 'cod' || c.paymentMethod === 'cash') return 'COD / at clinic'
+    if (c.paymentMethod === 'in_clinic' || c.paymentMethod === 'cod' || c.paymentMethod === 'cash') {
+      return 'Pay in clinic (pending)'
+    }
     return c.paymentStatus || '—'
+  }
+
+  const statusBadge = (c) => {
+    if (c.caseStatus === 'draft') {
+      return { text: 'Draft', cls: 'bg-amber-50 text-amber-800 border border-amber-200' }
+    }
+    return { text: 'Submitted', cls: 'bg-emerald-50 text-emerald-600' }
   }
 
   return (
@@ -48,7 +57,7 @@ const PatientCases = () => {
       <div className="mt-8 mb-12 flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">My Cases</h1>
-          <p className="text-slate-500 mt-1">Pre-appointment submissions and consultation history.</p>
+          <p className="text-slate-500 mt-1">Pre-appointment submissions, drafts, and consultation history.</p>
         </div>
         <Button onClick={() => navigate('/patient/dermatologists')} variant="outline">
           Book with a specialist
@@ -66,82 +75,111 @@ const PatientCases = () => {
         </Card>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8">
-          {cases.map((caseItem, index) => (
-            <motion.div
-              key={caseItem._id}
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
-            >
-              <Card className="group relative bg-white border border-slate-200 rounded-[2rem] p-8 hover:border-emerald-500/30 transition-all duration-300 hover:shadow-2xl hover:shadow-emerald-100">
-                <div className="flex justify-between items-center mb-6">
-                  <span className="text-xs font-bold text-slate-400 tracking-widest uppercase">
-                    {caseItem._id?.slice(-8)}
-                  </span>
-                  <span
-                    className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                      caseItem.caseStatus === 'submitted'
-                        ? 'bg-emerald-50 text-emerald-600'
-                        : 'bg-slate-100 text-slate-500'
-                    }`}
-                  >
-                    {caseItem.caseStatus || 'Submitted'}
-                  </span>
-                </div>
+          {cases.map((caseItem, index) => {
+            const st = statusBadge(caseItem)
+            const isDraft = caseItem.caseStatus === 'draft'
+            return (
+              <motion.div
+                key={caseItem._id}
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 }}
+              >
+                <Card
+                  className={`group relative bg-white border rounded-[2rem] p-8 transition-all duration-300 hover:shadow-2xl ${
+                    isDraft
+                      ? 'border-amber-200 ring-1 ring-amber-100 hover:border-amber-300'
+                      : 'border-slate-200 hover:border-emerald-500/30 hover:shadow-emerald-100'
+                  }`}
+                >
+                  <div className="flex justify-between items-center mb-6">
+                    <span className="text-xs font-bold text-slate-400 tracking-widest uppercase">
+                      {caseItem._id?.slice(-8)}
+                    </span>
+                    <span className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${st.cls}`}>
+                      {st.text}
+                    </span>
+                  </div>
 
-                <div className="mb-8">
-                  <h3 className="text-2xl font-bold text-slate-900 group-hover:text-emerald-600 transition-colors">
-                    {cap(caseItem.complaintType)}
-                  </h3>
-                  <p className="text-slate-400 text-sm mt-1">Pre-appointment package</p>
-                </div>
+                  <div className="mb-8">
+                    <h3 className="text-2xl font-bold text-slate-900 group-hover:text-emerald-600 transition-colors">
+                      {cap(caseItem.complaintType)}
+                    </h3>
+                    <p className="text-slate-400 text-sm mt-1">
+                      {isDraft ? 'Declined — resend to another doctor anytime' : 'Pre-appointment package'}
+                    </p>
+                  </div>
 
-                <div className="space-y-4 mb-8">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-emerald-50 flex items-center justify-center">
-                      <User size={14} className="text-emerald-600" />
+                  {isDraft && (
+                    <div className="mb-6 p-4 rounded-2xl bg-amber-50/80 border border-amber-100 text-sm text-slate-700">
+                      <p className="flex items-start gap-2 font-semibold text-amber-900">
+                        <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                        Declined by {caseItem.doctor?.name || 'your dermatologist'}
+                      </p>
+                      {caseItem.doctorRejectionComment ? (
+                        <p className="mt-2 text-slate-600 pl-6 border-l-2 border-amber-200">
+                          {caseItem.doctorRejectionComment}
+                        </p>
+                      ) : (
+                        <p className="mt-2 text-slate-500 pl-6">No comment from the doctor.</p>
+                      )}
                     </div>
-                    <div>
-                      <p className="text-[10px] uppercase font-bold text-slate-400 tracking-tight">
-                        Dermatologist
-                      </p>
-                      <p className="text-sm font-semibold text-slate-700">
-                        {caseItem.doctor?.name || '—'}
-                      </p>
+                  )}
+
+                  <div className="space-y-4 mb-8">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-emerald-50 flex items-center justify-center">
+                        <User size={14} className="text-emerald-600" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase font-bold text-slate-400 tracking-tight">
+                          {isDraft ? 'Previously assigned' : 'Dermatologist'}
+                        </p>
+                        <p className="text-sm font-semibold text-slate-700">{caseItem.doctor?.name || '—'}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center">
+                        <Calendar size={14} className="text-slate-500" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase font-bold text-slate-400 tracking-tight">
+                          Requested visit
+                        </p>
+                        <p className="text-sm font-semibold text-slate-700">
+                          {caseItem.appointmentDate ? formatDate(caseItem.appointmentDate) : '—'} ·{' '}
+                          {caseItem.appointmentTimeSlot || '—'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center">
+                        <CreditCard size={14} className="text-blue-600" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase font-bold text-slate-400 tracking-tight">Payment</p>
+                        <p className="text-sm font-semibold text-slate-700">{payLabel(caseItem)}</p>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center">
-                      <Calendar size={14} className="text-slate-500" />
-                    </div>
-                    <div>
-                      <p className="text-[10px] uppercase font-bold text-slate-400 tracking-tight">
-                        Requested visit
-                      </p>
-                      <p className="text-sm font-semibold text-slate-700">
-                        {caseItem.appointmentDate ? formatDate(caseItem.appointmentDate) : '—'} ·{' '}
-                        {caseItem.appointmentTimeSlot || '—'}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center">
-                      <CreditCard size={14} className="text-blue-600" />
-                    </div>
-                    <div>
-                      <p className="text-[10px] uppercase font-bold text-slate-400 tracking-tight">
-                        Payment
-                      </p>
-                      <p className="text-sm font-semibold text-slate-700">{payLabel(caseItem)}</p>
-                    </div>
-                  </div>
-                </div>
-
-              </Card>
-            </motion.div>
-          ))}
+                  {isDraft && (
+                    <Button
+                      className="w-full rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold gap-2"
+                      onClick={() =>
+                        navigate('/patient/dermatologists', { state: { draftCaseId: caseItem._id } })
+                      }
+                    >
+                      <FileEdit className="w-4 h-4" />
+                      Send to another doctor
+                    </Button>
+                  )}
+                </Card>
+              </motion.div>
+            )
+          })}
         </div>
       )}
     </div>

@@ -118,6 +118,34 @@ router.get('/me', auth(), async (req, res) => {
   }
 });
 
+// ----------------------
+// GET ALL USERS (ADMIN) — MUST be registered before GET /users/:id or /users may not match
+// ----------------------
+router.get('/users', auth(['admin']), async (req, res) => {
+  try {
+    const users = await User.find().select('-password');
+    res.json(users);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// ----------------------
+// ADMIN: dermatologists with certificates (verification queue)
+// ----------------------
+router.get('/admin/verification/doctors', auth(['admin']), async (req, res) => {
+  try {
+    const doctors = await User.find({ role: 'dermatologist' })
+      .select('-password')
+      .sort({ name: 1 })
+      .lean();
+    const withCerts = doctors.filter((d) => (d.certifications || []).length > 0);
+    res.json(withCerts);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 const path = require('path');
 const backendRoot = path.join(__dirname, '..');
 
@@ -148,6 +176,10 @@ router.patch('/profile', auth(), async (req, res) => {
       }
     });
 
+    if (req.body.timeZone !== undefined) {
+      user.timeZone = String(req.body.timeZone || '').trim().slice(0, 64);
+    }
+
     if (req.body.onboardingCompleted !== undefined) {
       user.onboardingCompleted = Boolean(req.body.onboardingCompleted);
     }
@@ -164,6 +196,15 @@ router.patch('/profile', auth(), async (req, res) => {
     if (req.body.availabilitySlots !== undefined) {
       const slots = Array.isArray(req.body.availabilitySlots) ? req.body.availabilitySlots : []
       user.availabilitySlots = slots.map(String)
+    }
+    if (req.body.availabilityWeekdays !== undefined) {
+      const raw = Array.isArray(req.body.availabilityWeekdays) ? req.body.availabilityWeekdays : []
+      const set = new Set()
+      for (const x of raw) {
+        const n = Number(x)
+        if (Number.isInteger(n) && n >= 0 && n <= 6) set.add(n)
+      }
+      user.availabilityWeekdays = [...set].sort((a, b) => a - b)
     }
 
     await user.save();
@@ -278,7 +319,7 @@ router.patch(
       if (!doctor) return res.status(404).json({ message: 'Doctor not found' });
 
       const cert = doctor.certifications.find(
-        (c) => c._id.toString() === req.params.certId
+        (c) => c && c._id && String(c._id) === String(req.params.certId)
       );
       if (!cert) return res.status(404).json({ message: 'Certificate not found' });
 
@@ -354,18 +395,6 @@ router.get('/doctors', async (req, res) => {
       .sort({ name: 1 })
       .lean();
     res.json(doctors);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// ----------------------
-// GET ALL USERS (ADMIN ONLY)
-// ----------------------
-router.get('/users', auth(['admin']), async (req, res) => {
-  try {
-    const users = await User.find().select('-password');
-    res.json(users);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

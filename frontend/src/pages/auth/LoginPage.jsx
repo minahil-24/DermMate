@@ -45,6 +45,35 @@ const LoginPage = () => {
         message: `Welcome back, ${data.user.name}!`,
       })
 
+      if (data.user.role === 'patient') {
+        try {
+          const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+          await fetch(`${apiUrl}/api/auth/profile`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${data.token}`,
+            },
+            body: JSON.stringify({ timeZone: tz }),
+          })
+          const cr = await fetch(`${apiUrl}/api/cases/my`, {
+            headers: { Authorization: `Bearer ${data.token}` },
+          })
+          const caseList = await cr.json()
+          if (Array.isArray(caseList) && caseList.some((c) => c.caseStatus === 'draft')) {
+            addToast({
+              type: 'info',
+              title: 'Send your case to a doctor?',
+              message:
+                'You have a draft in My cases. Pick another dermatologist — your questionnaire and images are kept.',
+              duration: 8000,
+            })
+          }
+        } catch {
+          /* non-blocking */
+        }
+      }
+
       // Check for onboarding
       if (!data.user.onboardingCompleted && data.user.role !== 'admin') {
         navigate('/onboarding')

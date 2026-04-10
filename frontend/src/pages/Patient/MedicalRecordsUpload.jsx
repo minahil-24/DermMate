@@ -7,7 +7,7 @@ import Button from '../../components/ui/Button'
 import Breadcrumbs from '../../components/common/Breadcrumbs'
 import { useToastStore } from '../../store/toastStore'
 import { useAuthStore } from '../../store/authStore'
-import { mergeBooking, loadBooking } from '../../utils/bookingFlow'
+import { mergeBooking, loadBooking, redirectDraftResubmitToSchedule } from '../../utils/bookingFlow'
 
 const MedicalRecordsUpload = () => {
   const navigate = useNavigate()
@@ -22,10 +22,11 @@ const MedicalRecordsUpload = () => {
   const complaintType = location.state?.complaintType || loadBooking().complaintType
 
   useEffect(() => {
+    if (redirectDraftResubmitToSchedule(navigate, location)) return
     if (!doctorId || !complaintType) {
       navigate('/patient/dermatologists', { replace: true })
     }
-  }, [doctorId, complaintType, navigate])
+  }, [doctorId, complaintType, navigate, location])
 
   const uploadFile = async (file) => {
     const fd = new FormData()

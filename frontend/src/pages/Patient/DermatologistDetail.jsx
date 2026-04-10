@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
     User, MapPin, Briefcase, Star, CheckCircle,
     FileText, Award, Building, Phone, Mail,
@@ -14,10 +14,14 @@ import Breadcrumbs from '../../components/common/Breadcrumbs';
 import { useAuthStore } from '../../store/authStore';
 import { useToastStore } from '../../store/toastStore';
 import { getCertPath, getCertStatus } from '../../utils/certificates';
+import { mergeBooking } from '../../utils/bookingFlow';
+import { fetchCanBookDoctor } from '../../utils/canBookDoctor';
 
 const DermatologistDetail = () => {
     const { id } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
+    const draftCaseId = location.state?.draftCaseId;
     const { token } = useAuthStore();
     const addToast = useToastStore((state) => state.addToast);
 
@@ -135,7 +139,41 @@ const DermatologistDetail = () => {
                             </div>
 
                             <div className="flex gap-3 pb-4">
-                                <Button size="lg" className="rounded-2xl px-12 bg-slate-900 shadow-xl shadow-slate-200 h-16 font-black uppercase tracking-widest text-xs" onClick={() => navigate('/patient/booking/complaint', { state: { doctorId: doctor._id, doctorName: doctor.name } })}>
+                                <Button size="lg" className="rounded-2xl px-12 bg-slate-900 shadow-xl shadow-slate-200 h-16 font-black uppercase tracking-widest text-xs" onClick={async () => {
+                                    if (draftCaseId) {
+                                        mergeBooking({ draftCaseId, doctorId: doctor._id })
+                                        navigate('/patient/booking/schedule', {
+                                            state: {
+                                                doctorId: doctor._id,
+                                                doctorName: doctor.name,
+                                                draftCaseId,
+                                                bookingFlow: true,
+                                            },
+                                        })
+                                    } else {
+                                        if (token) {
+                                            try {
+                                                const data = await fetchCanBookDoctor(apiUrl, token, doctor._id);
+                                                if (data && data.allowed === false) {
+                                                    addToast({
+                                                        type: 'error',
+                                                        title: 'Cannot book',
+                                                        message: data.message || 'You cannot start a new booking with this dermatologist right now.',
+                                                    });
+                                                    return;
+                                                }
+                                            } catch (e) {
+                                                addToast({
+                                                    type: 'error',
+                                                    title: 'Could not verify',
+                                                    message: e.response?.data?.message || e.message || 'Please try again.',
+                                                });
+                                                return;
+                                            }
+                                        }
+                                        navigate('/patient/booking/complaint', { state: { doctorId: doctor._id, doctorName: doctor.name } })
+                                    }
+                                }}>
                                     Book appointment
                                 </Button>
                             </div>

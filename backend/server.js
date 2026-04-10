@@ -25,6 +25,13 @@ mongoose.connect(process.env.MONGO_URI)
     console.log('MongoDB Connected');
     console.log(`Connected to DB: ${mongoose.connection.name}`);
     await migrateLegacyCertifications();
+
+    const cron = require('node-cron')
+    const { runTomorrowAppointmentReminders } = require('./jobs/tomorrowAppointmentReminder')
+    cron.schedule('0 * * * *', () => {
+      runTomorrowAppointmentReminders().catch((e) => console.error('cron appointment_tomorrow:', e))
+    })
+    console.log('Cron: hourly appointment-tomorrow reminders for doctors (patient/doctor timeZone).')
   })
   .catch(err => console.error('MongoDB Connection Error:', err))
 
@@ -39,12 +46,18 @@ async function migrateLegacyCertifications() {
     for (const u of rawUsers) {
       const certs = u.certifications;
       if (!certs || !certs.length) continue;
-      if (typeof certs[0] === 'string') {
-        const newCerts = certs.map((filePath) => ({
-          filePath,
-          status: u.isDoctorVerified ? 'verified' : 'pending',
-          uploadedAt: new Date(),
-        }));
+      const hasStringEntry = certs.some((c) => typeof c === 'string');
+      if (hasStringEntry) {
+        const newCerts = certs.map((c) => {
+          if (typeof c === 'string') {
+            return {
+              filePath: c,
+              status: u.isDoctorVerified ? 'verified' : 'pending',
+              uploadedAt: new Date(),
+            };
+          }
+          return c;
+        });
         await coll.updateOne({ _id: u._id }, { $set: { certifications: newCerts } });
       }
     }

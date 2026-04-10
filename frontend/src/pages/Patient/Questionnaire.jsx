@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
@@ -8,7 +8,7 @@ import Button from '../../components/ui/Button'
 import Breadcrumbs from '../../components/common/Breadcrumbs'
 import { useToastStore } from '../../store/toastStore'
 import { getQuestionnaireSteps } from '../../data/questionnaireSteps'
-import { mergeBooking, loadBooking } from '../../utils/bookingFlow'
+import { mergeBooking, loadBooking, redirectDraftResubmitToSchedule } from '../../utils/bookingFlow'
 
 const Questionnaire = () => {
   const location = useLocation()
@@ -19,6 +19,12 @@ const Questionnaire = () => {
   const addToast = useToastStore((state) => state.addToast)
 
   const isBooking = location.pathname.includes('/patient/booking/')
+
+  useEffect(() => {
+    if (!isBooking) return
+    redirectDraftResubmitToSchedule(navigate, location)
+  }, [isBooking, navigate, location])
+
   const steps = getQuestionnaireSteps(complaintType)
   const totalSteps = steps.length
   const progress = (currentStep / totalSteps) * 100

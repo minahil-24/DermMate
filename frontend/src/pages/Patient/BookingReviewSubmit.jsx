@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { FileText, Image as ImageIcon, Calendar, CheckCircle, Loader2 } from 'lucide-react'
@@ -8,54 +8,105 @@ import Button from '../../components/ui/Button'
 import Breadcrumbs from '../../components/common/Breadcrumbs'
 import { useToastStore } from '../../store/toastStore'
 import { useAuthStore } from '../../store/authStore'
-import { loadBooking, clearBooking } from '../../utils/bookingFlow'
+import { loadBooking, clearBooking, mergeBooking } from '../../utils/bookingFlow'
 import { formatDate } from '../../utils/helpers'
+
+const paymentLabel = (m) => {
+  if (m === 'online') return 'Online (marked paid — demo)'
+  if (m === 'in_clinic' || m === 'cod' || m === 'cash') return 'Pay in clinic (pending until visit)'
+  return m || '—'
+}
+
+const paymentStatusLabel = (m) => {
+  if (m === 'online') return 'Paid'
+  return 'Pending at clinic'
+}
 
 const BookingReviewSubmit = () => {
   const navigate = useNavigate()
   const { token } = useAuthStore()
   const addToast = useToastStore((s) => s.addToast)
   const [submitting, setSubmitting] = useState(false)
+  const [booking, setBooking] = useState(() => loadBooking())
   const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000'
 
-  const b = useMemo(() => loadBooking(), [])
-  const doctorId = b.doctorId
+  const doctorId = booking.doctorId
+  const draftCaseId = booking.draftCaseId
 
-  const paymentLabel = (m) => {
-    if (m === 'cod') return 'Cash on delivery (pending)'
-    if (m === 'cash') return 'Cash at clinic (pending)'
-    if (m === 'online') return 'Online (marked paid — demo)'
-    return m || '—'
-  }
+  useEffect(() => {
+    if (!draftCaseId || !token) return
+    const loadDraft = async () => {
+      try {
+        const res = await axios.get(`${apiUrl}/api/cases/${draftCaseId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        mergeBooking({
+          draftCaseId,
+          complaintType: res.data.complaintType,
+          questionnaire: res.data.questionnaire || {},
+          medicalHistoryFiles: res.data.medicalHistoryFiles || [],
+          affectedImages: res.data.affectedImages || [],
+        })
+        setBooking(loadBooking())
+      } catch {
+        addToast({ type: 'error', title: 'Error', message: 'Could not load draft case.' })
+      }
+    }
+    loadDraft()
+  }, [draftCaseId, token, apiUrl, addToast])
 
-  const paymentStatusLabel = (m) => {
-    if (m === 'online') return 'Paid'
-    return 'Pending COD'
-  }
+  const b = useMemo(() => booking, [booking])
 
   const submitCase = async () => {
-    if (!doctorId || !b.complaintType) {
+    const snap = loadBooking()
+    const dId = snap.doctorId
+    const dCase = snap.draftCaseId
+    if (!dId || !snap.complaintType) {
       addToast({ type: 'error', title: 'Incomplete', message: 'Please restart booking from the doctor search.' })
       navigate('/patient/dermatologists')
       return
     }
-    if (!b.affectedImages || b.affectedImages.length < 1) {
+    if (!dCase && (!snap.affectedImages || snap.affectedImages.length < 1)) {
       addToast({ type: 'error', title: 'Missing images', message: 'Affected area images are required.' })
-      navigate('/patient/booking/affected-images', { state: { doctorId, complaintType: b.complaintType } })
+      navigate('/patient/booking/affected-images', { state: { doctorId: dId, complaintType: snap.complaintType } })
       return
     }
+    let pm = snap.paymentMethod
+    if (pm === 'cod' || pm === 'cash') pm = 'in_clinic'
     setSubmitting(true)
     try {
+      if (dCase) {
+        await axios.post(
+          `${apiUrl}/api/cases/resubmit/${dCase}`,
+          {
+            doctorId: dId,
+            appointmentDate: snap.appointmentDate,
+            appointmentTimeSlot: snap.appointmentTimeSlot,
+            consultationFee: snap.consultationFee ?? 0,
+            paymentMethod: pm || 'in_clinic',
+          },
+          { headers: { Authorization: `Bearer ${token}` } }
+        )
+        clearBooking()
+        addToast({
+          type: 'success',
+          title: 'Resubmitted',
+          message: 'Your case was sent to the new dermatologist.',
+        })
+        navigate('/patient/cases')
+        return
+      }
+
       const payload = {
-        doctorId,
-        complaintType: b.complaintType,
-        questionnaire: b.questionnaire || {},
-        medicalHistoryFiles: b.medicalHistoryFiles || [],
-        affectedImages: b.affectedImages || [],
-        appointmentDate: b.appointmentDate,
-        appointmentTimeSlot: b.appointmentTimeSlot,
-        consultationFee: b.consultationFee ?? 0,
-        paymentMethod: b.paymentMethod || 'cod',
+        doctorId: dId,
+        complaintType: snap.complaintType,
+        questionnaire: snap.questionnaire || {},
+        medicalHistoryFiles: snap.medicalHistoryFiles || [],
+        affectedImages: snap.affectedImages || [],
+        appointmentDate: snap.appointmentDate,
+        appointmentTimeSlot: snap.appointmentTimeSlot,
+        consultationFee: snap.consultationFee ?? 0,
+        paymentMethod: pm || 'in_clinic',
       }
       await axios.post(`${apiUrl}/api/cases`, payload, {
         headers: { Authorization: `Bearer ${token}` },
@@ -94,12 +145,18 @@ const BookingReviewSubmit = () => {
       <Breadcrumbs
         items={[
           { label: 'Find Specialist', link: '/patient/dermatologists' },
-          { label: 'Review & submit' },
+          { label: draftCaseId ? 'Resubmit draft' : 'Review & submit' },
         ]}
       />
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Review pre-appointment submission</h1>
-        <p className="text-gray-600">Confirm everything before sending to your dermatologist.</p>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          {draftCaseId ? 'Resubmit your draft' : 'Review pre-appointment submission'}
+        </h1>
+        <p className="text-gray-600">
+          {draftCaseId
+            ? 'Confirm the new doctor, slot, and payment. Your questionnaire and images stay on file.'
+            : 'Confirm everything before sending to your dermatologist.'}
+        </p>
       </div>
 
       <div className="space-y-6">
@@ -139,9 +196,7 @@ const BookingReviewSubmit = () => {
           <h2 className="font-bold text-gray-900 mb-2 flex items-center gap-2">
             <FileText className="w-5 h-5" /> Medical records
           </h2>
-          <p className="text-sm text-gray-600">
-            {(b.medicalHistoryFiles || []).length} file(s) uploaded
-          </p>
+          <p className="text-sm text-gray-600">{(b.medicalHistoryFiles || []).length} file(s) uploaded</p>
         </Card>
 
         <Card className="p-6">
@@ -153,7 +208,7 @@ const BookingReviewSubmit = () => {
             {(b.affectedImages || []).map((img, idx) => (
               <img
                 key={`${img.filePath}-${idx}`}
-                src={`${apiUrl}/${img.filePath.replace(/\\/g, '/')}`}
+                src={`${apiUrl}/${String(img.filePath).replace(/\\/g, '/')}`}
                 alt=""
                 className="w-24 h-24 object-cover rounded-lg border"
               />
@@ -165,7 +220,7 @@ const BookingReviewSubmit = () => {
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-8 flex justify-end">
         <Button size="lg" onClick={submitCase} disabled={submitting} className="gap-2">
           {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle className="w-5 h-5" />}
-          Submit to dermatologist
+          {draftCaseId ? 'Send to new dermatologist' : 'Submit to dermatologist'}
         </Button>
       </motion.div>
     </div>

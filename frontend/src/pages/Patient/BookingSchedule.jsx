@@ -7,20 +7,39 @@ import Button from '../../components/ui/Button'
 import Breadcrumbs from '../../components/common/Breadcrumbs'
 import { formatTime } from '../../utils/helpers'
 import { mergeBooking, loadBooking } from '../../utils/bookingFlow'
+import { useAuthStore } from '../../store/authStore'
+import { useToastStore } from '../../store/toastStore'
+import { fetchCanBookDoctor } from '../../utils/canBookDoctor'
+
+function toLocalYmd(d) {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
 
 const BookingSchedule = () => {
   const navigate = useNavigate()
   const location = useLocation()
+  const { token } = useAuthStore()
+  const addToast = useToastStore((s) => s.addToast)
   const [doctor, setDoctor] = useState(null)
   const [loading, setLoading] = useState(true)
   const [selectedDate, setSelectedDate] = useState(null)
   const [selectedTime, setSelectedTime] = useState(null)
-  const [paymentMethod, setPaymentMethod] = useState('cod')
+  const [paymentMethod, setPaymentMethod] = useState('in_clinic')
 
   const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000'
 
+  const draftCaseId = location.state?.draftCaseId || loadBooking().draftCaseId
   const doctorId = location.state?.doctorId || loadBooking().doctorId
   const complaintType = location.state?.complaintType || loadBooking().complaintType
+
+  useEffect(() => {
+    if (doctorId && !draftCaseId && !complaintType) {
+      navigate('/patient/booking/complaint', { replace: true, state: { doctorId } })
+    }
+  }, [doctorId, draftCaseId, complaintType, navigate])
 
   useEffect(() => {
     if (!doctorId) {
@@ -41,11 +60,61 @@ const BookingSchedule = () => {
     load()
   }, [doctorId, apiUrl, navigate])
 
-  const availableDates = Array.from({ length: 30 }, (_, i) => {
-    const date = new Date()
-    date.setDate(date.getDate() + i + 1)
-    return date
-  })
+  useEffect(() => {
+    if (!draftCaseId || !token) return
+    const syncDraft = async () => {
+      try {
+        const res = await axios.get(`${apiUrl}/api/cases/${draftCaseId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        mergeBooking({
+          draftCaseId,
+          complaintType: res.data.complaintType,
+        })
+      } catch {
+        /* ignore */
+      }
+    }
+    syncDraft()
+  }, [draftCaseId, token, apiUrl])
+
+  useEffect(() => {
+    if (!doctorId || !token) return
+    const run = async () => {
+      try {
+        const data = await fetchCanBookDoctor(apiUrl, token, doctorId, draftCaseId || undefined)
+        if (data && data.allowed === false) {
+          addToast({
+            type: 'error',
+            title: 'Cannot book',
+            message: data.message || 'You cannot book with this dermatologist right now.',
+          })
+          navigate('/patient/dermatologists', { replace: true })
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    run()
+  }, [doctorId, token, draftCaseId, apiUrl, navigate, addToast])
+
+  const availableDates = useMemo(() => {
+    const base = Array.from({ length: 30 }, (_, i) => {
+      const date = new Date()
+      date.setDate(date.getDate() + i + 1)
+      return date
+    })
+    const wd = doctor?.availabilityWeekdays
+    if (!Array.isArray(wd) || wd.length === 0) return base
+    const set = new Set(wd.map((n) => Number(n)))
+    return base.filter((d) => set.has(d.getDay()))
+  }, [doctor])
+
+  useEffect(() => {
+    if (!selectedDate) return
+    const ok = availableDates.some((d) => toLocalYmd(d) === selectedDate)
+    if (!ok) setSelectedDate(null)
+  }, [availableDates, selectedDate])
 
   const fee = doctor?.consultationFee || 0
   const availableSlots = useMemo(() => {
@@ -56,14 +125,22 @@ const BookingSchedule = () => {
 
   const goReview = () => {
     if (!selectedDate || !selectedTime) return
+    const ct = complaintType || loadBooking().complaintType
     mergeBooking({
       appointmentDate: selectedDate,
       appointmentTimeSlot: selectedTime,
       paymentMethod,
       consultationFee: fee,
+      draftCaseId: draftCaseId || undefined,
+      complaintType: ct,
     })
     navigate('/patient/booking/review', {
-      state: { doctorId, complaintType, bookingFlow: true },
+      state: {
+        doctorId,
+        complaintType: ct,
+        bookingFlow: true,
+        draftCaseId: draftCaseId || undefined,
+      },
     })
   }
 
@@ -96,7 +173,11 @@ const BookingSchedule = () => {
       />
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Schedule & payment</h1>
-        <p className="text-gray-600">Choose a slot and how you will pay (online payments coming soon).</p>
+        <p className="text-gray-600">
+          {draftCaseId
+            ? 'Resubmitting your saved draft — pick a new slot and payment. Questionnaire and images are reused.'
+            : 'Choose a slot and how you will pay (online payments coming soon).'}
+        </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -124,8 +205,14 @@ const BookingSchedule = () => {
             <Calendar className="w-5 h-5" /> Date
           </h3>
           <div className="grid grid-cols-7 gap-2 max-h-64 overflow-y-auto">
-            {availableDates.slice(0, 14).map((date) => {
-              const dateStr = date.toISOString().split('T')[0]
+            {availableDates.length === 0 ? (
+              <p className="text-sm text-gray-600 col-span-7">
+                No bookable days in the next 30 days match this specialist&apos;s working days. Try again later or contact
+                the clinic.
+              </p>
+            ) : (
+              availableDates.slice(0, 14).map((date) => {
+              const dateStr = toLocalYmd(date)
               const isSelected = selectedDate === dateStr
               const dayName = date.toLocaleDateString('en-US', { weekday: 'short' })
               const dayNum = date.getDate()
@@ -142,7 +229,8 @@ const BookingSchedule = () => {
                   <div className="font-semibold">{dayNum}</div>
                 </button>
               )
-            })}
+            })
+            )}
           </div>
         </Card>
 
@@ -180,31 +268,18 @@ const BookingSchedule = () => {
 
       <Card className="mt-8 p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Payment method</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl">
           <button
             type="button"
-            onClick={() => setPaymentMethod('cod')}
+            onClick={() => setPaymentMethod('in_clinic')}
             className={`p-4 rounded-xl border-2 flex items-center gap-3 text-left ${
-              paymentMethod === 'cod' ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200'
+              paymentMethod === 'in_clinic' ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200'
             }`}
           >
             <Banknote className="w-8 h-8 text-emerald-600" />
             <div>
-              <p className="font-bold text-gray-900">Cash on delivery</p>
-              <p className="text-xs text-gray-500">Pay when you receive the visit confirmation</p>
-            </div>
-          </button>
-          <button
-            type="button"
-            onClick={() => setPaymentMethod('cash')}
-            className={`p-4 rounded-xl border-2 flex items-center gap-3 text-left ${
-              paymentMethod === 'cash' ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200'
-            }`}
-          >
-            <Banknote className="w-8 h-8 text-slate-600" />
-            <div>
-              <p className="font-bold text-gray-900">Cash at clinic</p>
-              <p className="text-xs text-gray-500">Pay at the clinic on the day of visit</p>
+              <p className="font-bold text-gray-900">Pay in clinic</p>
+              <p className="text-xs text-gray-500">Pay at the clinic on the day of your visit</p>
             </div>
           </button>
           <button
@@ -227,7 +302,9 @@ const BookingSchedule = () => {
         <Button
           size="lg"
           onClick={goReview}
-          disabled={!selectedDate || !selectedTime || availableSlots.length === 0}
+          disabled={
+            !selectedDate || !selectedTime || availableSlots.length === 0 || availableDates.length === 0
+          }
         >
           Review & submit
         </Button>

@@ -59,6 +59,7 @@ const DermatologistAppointments = () => {
   const [cases, setCases] = useState([])
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
+  const [declineNote, setDeclineNote] = useState('')
 
   const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000'
 
@@ -108,16 +109,19 @@ const DermatologistAppointments = () => {
     if (!cid) return
     try {
       setActionLoading(true)
-      await axios.patch(
-        `${apiUrl}/api/cases/review/${cid}`,
-        { decision },
-        { headers: { Authorization: `Bearer ${token}` } }
-      )
+      const body =
+        decision === 'rejected'
+          ? { decision, comment: declineNote.trim().slice(0, 1000) }
+          : { decision }
+      await axios.patch(`${apiUrl}/api/cases/review/${cid}`, body, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
       addToast({
         type: 'success',
         title: decision === 'accepted' ? 'Case accepted' : 'Case declined',
         message: 'The patient has been notified.',
       })
+      setDeclineNote('')
       setSelectedCase(null)
       await load()
     } catch (e) {
@@ -273,7 +277,7 @@ const DermatologistAppointments = () => {
                 <strong>Payment:</strong>{' '}
                 {selectedCase.paymentStatus === 'paid' || selectedCase.paymentMethod === 'online'
                   ? 'Paid'
-                  : 'Pending (COD / clinic)'}
+                  : 'Pending (pay in clinic)'}
               </p>
             </div>
 
@@ -336,6 +340,22 @@ const DermatologistAppointments = () => {
               </div>
             )}
 
+            {canDecide(selectedCase) && (
+              <div className="mt-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Optional note to patient (if you decline)
+                </label>
+                <textarea
+                  value={declineNote}
+                  onChange={(e) => setDeclineNote(e.target.value)}
+                  maxLength={1000}
+                  rows={3}
+                  placeholder="Reason for declining — shown to the patient in My cases and their notification."
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                />
+              </div>
+            )}
+
             <div className="flex flex-wrap justify-end gap-3 mt-6 pt-4 border-t border-gray-100">
               {canDecide(selectedCase) && (
                 <>
@@ -360,7 +380,10 @@ const DermatologistAppointments = () => {
               <Button
                 variant="outline"
                 className="border-gray-300 hover:border-gray-400 text-gray-700"
-                onClick={() => setSelectedCase(null)}
+                onClick={() => {
+                  setDeclineNote('')
+                  setSelectedCase(null)
+                }}
               >
                 Close
               </Button>

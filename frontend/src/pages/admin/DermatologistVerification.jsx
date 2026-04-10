@@ -19,12 +19,10 @@ const DermatologistVerification = () => {
   const fetchDoctors = useCallback(async () => {
     try {
       setLoading(true)
-      const response = await axios.get(`${apiUrl}/api/auth/users`, {
+      const response = await axios.get(`${apiUrl}/api/auth/admin/verification/doctors`, {
         headers: { Authorization: `Bearer ${token}` },
       })
-      const list = (response.data || []).filter(
-        (u) => u.role === 'dermatologist' && u.certifications && u.certifications.length > 0
-      )
+      const list = response.data || []
       setDoctors(list)
     } catch (error) {
       addToast({ type: 'error', title: 'Fetch Failed', message: 'Could not load doctors' })

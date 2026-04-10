@@ -84,6 +84,11 @@ const caseSchema = new mongoose.Schema(
     },
     isCancelledByPatient: { type: Boolean, default: false },
 
+    /** Optional note from dermatologist when declining (patient sees in notification + My cases) */
+    doctorRejectionComment: { type: String, default: '' },
+    /** Calendar day (YYYY-MM-DD in resolved TZ) we already sent "appointment tomorrow" for; cleared when appointment/resubmit changes */
+    doctorTomorrowReminderAptYmd: { type: String, default: '' },
+
     /** Dermatologist workspace */
     clinicalNotes: { type: [noteEntry], default: [] },
     reports: { type: [reportEntry], default: [] },

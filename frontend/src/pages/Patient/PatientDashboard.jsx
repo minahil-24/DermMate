@@ -7,10 +7,12 @@ import Card from '../../components/ui/Card'
 import Breadcrumbs from '../../components/common/Breadcrumbs'
 import { formatDate } from '../../utils/helpers'
 import { useAuthStore } from '../../store/authStore'
+import { useToastStore } from '../../store/toastStore'
 
 const PatientDashboard = () => {
   const navigate = useNavigate()
-  const { token } = useAuthStore()
+  const { token, user, updateUser } = useAuthStore()
+  const addToast = useToastStore((s) => s.addToast)
   const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000'
 
   const [loading, setLoading] = useState(true)
@@ -26,8 +28,18 @@ const PatientDashboard = () => {
           axios.get(`${apiUrl}/api/cases/my`, { headers: { Authorization: `Bearer ${token}` } }),
           axios.get(`${apiUrl}/api/notifications`, { headers: { Authorization: `Bearer ${token}` } }),
         ])
-        setCases(casesRes.data || [])
+        const list = casesRes.data || []
+        setCases(list)
         setNotifications(notifRes.data || [])
+        if (list.some((c) => c.caseStatus === 'draft')) {
+          addToast({
+            type: 'info',
+            title: 'Send your case to a doctor?',
+            message:
+              'You have a draft (declined request) in My cases. Choose another dermatologist — screenings stay saved.',
+            duration: 7000,
+          })
+        }
       } catch {
         setCases([])
         setNotifications([])
@@ -36,7 +48,23 @@ const PatientDashboard = () => {
       }
     }
     load()
-  }, [token, apiUrl])
+  }, [token, apiUrl, addToast])
+
+  useEffect(() => {
+    if (!token || user?.role !== 'patient') return
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+    if (!tz || (user?.timeZone && String(user.timeZone).trim())) return
+    axios
+      .patch(
+        `${apiUrl}/api/auth/profile`,
+        { timeZone: tz },
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      .then((r) => {
+        if (r.data?.user) updateUser(r.data.user)
+      })
+      .catch(() => {})
+  }, [token, user?.role, user?.timeZone, apiUrl, updateUser])
 
   const unreadNotifications = useMemo(
     () => notifications.filter((n) => !n.read).length,
@@ -46,6 +74,7 @@ const PatientDashboard = () => {
   const upcomingAppointments = useMemo(() => {
     const now = new Date()
     return (cases || [])
+      .filter((c) => c.caseStatus !== 'draft')
       .filter((c) => !c.isCancelledByPatient)
       .filter((c) => c.appointmentDate && new Date(c.appointmentDate) >= now)
       .sort((a, b) => new Date(a.appointmentDate) - new Date(b.appointmentDate))

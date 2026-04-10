@@ -23,6 +23,43 @@ function relPath(absPath) {
   return path.relative(backendRoot, absPath).replace(/\\/g, '/')
 }
 
+function startOfLocalDay(d) {
+  const x = new Date(d)
+  return new Date(x.getFullYear(), x.getMonth(), x.getDate())
+}
+
+/**
+ * Block a second new case with the same doctor while an earlier one is still "active"
+ * (visit day not yet passed) and not cancelled. Declined drafts require resubmit, not POST /.
+ */
+function findBlockingCaseForPatientDoctor(cases, { excludeCaseId } = {}) {
+  const today = startOfLocalDay(new Date())
+  for (const c of cases) {
+    if (excludeCaseId && String(c._id) === String(excludeCaseId)) continue
+    if (c.isCancelledByPatient) continue
+
+    const apt = startOfLocalDay(new Date(c.appointmentDate))
+    if (apt < today) continue
+
+    if (c.caseStatus === 'draft' && c.doctorReviewStatus === 'rejected') {
+      return {
+        blocked: true,
+        message:
+          'You have a declined draft with this dermatologist. Open My cases and use Resubmit to schedule again — you cannot start a duplicate booking.',
+      }
+    }
+
+    if (c.doctorReviewStatus === 'pending' || c.doctorReviewStatus === 'accepted') {
+      return {
+        blocked: true,
+        message:
+          'You already have an open case with this dermatologist before your visit date. Cancel that request or wait until after the scheduled visit to book again.',
+      }
+    }
+  }
+  return { blocked: false }
+}
+
 router.post('/upload', auth(['patient']), upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
@@ -61,6 +98,12 @@ router.post('/', auth(['patient']), async (req, res) => {
       return res.status(404).json({ message: 'Dermatologist not found' })
     }
 
+    const existingForDoctor = await MedicalCase.find({ patient: req.user.id, doctor: doctorId })
+    const block = findBlockingCaseForPatientDoctor(existingForDoctor, {})
+    if (block.blocked) {
+      return res.status(400).json({ message: block.message })
+    }
+
     const med = Array.isArray(medicalHistoryFiles) ? medicalHistoryFiles : []
     const aff = Array.isArray(affectedImages) ? affectedImages : []
     if (aff.length < 1 || aff.length > 3) {
@@ -72,11 +115,15 @@ router.post('/', auth(['patient']), async (req, res) => {
       }
     }
 
-    let paymentStatus = 'pending'
-    if (paymentMethod === 'online') {
+    let pm = paymentMethod
+    if (pm === 'cod' || pm === 'cash') pm = 'in_clinic'
+    if (!['online', 'in_clinic'].includes(pm)) {
+      return res.status(400).json({ message: 'Payment method must be online or in_clinic' })
+    }
+
+    let paymentStatus = 'pending_clinic'
+    if (pm === 'online') {
       paymentStatus = 'paid'
-    } else if (paymentMethod === 'cod' || paymentMethod === 'cash') {
-      paymentStatus = 'pending_cod'
     }
 
     const doc = new MedicalCase({
@@ -96,7 +143,7 @@ router.post('/', auth(['patient']), async (req, res) => {
       appointmentDate: new Date(appointmentDate),
       appointmentTimeSlot,
       consultationFee: Number(consultationFee) || doctor.consultationFee || 0,
-      paymentMethod,
+      paymentMethod: pm,
       paymentStatus,
       caseStatus: 'submitted',
       doctorReviewStatus: 'pending',
@@ -126,6 +173,81 @@ router.post('/', auth(['patient']), async (req, res) => {
   }
 })
 
+/** Resubmit a declined draft to another dermatologist (reuses questionnaire/images on server) */
+router.post('/resubmit/:caseId', auth(['patient']), async (req, res) => {
+  try {
+    const caseId = String(req.params.caseId || '').trim()
+    if (!caseId || !mongoose.Types.ObjectId.isValid(caseId)) {
+      return res.status(400).json({ message: 'Invalid case id' })
+    }
+
+    const {
+      doctorId,
+      appointmentDate,
+      appointmentTimeSlot,
+      consultationFee,
+      paymentMethod,
+    } = req.body
+
+    let pm = paymentMethod
+    if (pm === 'cod' || pm === 'cash') pm = 'in_clinic'
+    if (!['online', 'in_clinic'].includes(pm)) {
+      return res.status(400).json({ message: 'Payment method must be online or in_clinic' })
+    }
+
+    const c = await MedicalCase.findOne({ _id: caseId, patient: req.user.id })
+    if (!c) return res.status(404).json({ message: 'Case not found' })
+    if (c.caseStatus !== 'draft' || c.doctorReviewStatus !== 'rejected') {
+      return res.status(400).json({ message: 'Only declined draft cases can be resubmitted' })
+    }
+
+    const doctor = await User.findOne({ _id: doctorId, role: 'dermatologist' })
+    if (!doctor) {
+      return res.status(404).json({ message: 'Dermatologist not found' })
+    }
+
+    c.doctor = doctorId
+    c.appointmentDate = new Date(appointmentDate)
+    c.appointmentTimeSlot = appointmentTimeSlot
+    c.consultationFee = Number(consultationFee) || doctor.consultationFee || 0
+
+    if (c.paymentStatus === 'paid') {
+      // No second charge (e.g. prior online payment)
+    } else {
+      c.paymentMethod = pm
+      c.paymentStatus = pm === 'online' ? 'paid' : 'pending_clinic'
+    }
+
+    c.caseStatus = 'submitted'
+    c.doctorReviewStatus = 'pending'
+    c.isCancelledByPatient = false
+    c.doctorRejectionComment = ''
+    c.doctorTomorrowReminderAptYmd = ''
+
+    await c.save()
+
+    const populated = await MedicalCase.findById(c._id)
+      .populate('doctor', 'name email specialty')
+      .populate('patient', 'name email')
+      .lean()
+
+    try {
+      await notifyUser(doctor._id, {
+        title: 'New pre-appointment case',
+        message: `${populated.patient?.name || 'A patient'} resubmitted a case for review before an appointment.`,
+        link: '/dermatologist/appointments',
+        type: 'case_submitted',
+      })
+    } catch (e) {
+      console.error('notifyUser doctor resubmit:', e)
+    }
+
+    res.json({ message: 'Resubmitted', case: populated })
+  } catch (error) {
+    res.status(500).json({ message: error.message })
+  }
+})
+
 router.get('/my', auth(['patient']), async (req, res) => {
   try {
     const list = await MedicalCase.find({ patient: req.user.id })
@@ -140,11 +262,33 @@ router.get('/my', auth(['patient']), async (req, res) => {
 
 router.get('/doctor/incoming', auth(['dermatologist']), async (req, res) => {
   try {
-    const list = await MedicalCase.find({ doctor: req.user.id })
+    const list = await MedicalCase.find({
+      doctor: req.user.id,
+      caseStatus: { $ne: 'draft' },
+    })
       .populate('patient', 'name email profilePhoto phoneNumber location age gender')
       .sort({ createdAt: -1 })
       .lean()
     res.json(list)
+  } catch (error) {
+    res.status(500).json({ message: error.message })
+  }
+})
+
+/** Whether patient may start a new booking (POST /cases) with this doctor; optional excludeCaseId for draft resubmit */
+router.get('/can-book/:doctorId', auth(['patient']), async (req, res) => {
+  try {
+    const doctorId = String(req.params.doctorId || '').trim()
+    if (!doctorId || !mongoose.Types.ObjectId.isValid(doctorId)) {
+      return res.status(400).json({ message: 'Invalid doctor id' })
+    }
+    const excludeRaw = req.query.excludeCaseId
+    const excludeCaseId =
+      excludeRaw && mongoose.Types.ObjectId.isValid(String(excludeRaw)) ? String(excludeRaw) : undefined
+
+    const cases = await MedicalCase.find({ patient: req.user.id, doctor: doctorId })
+    const r = findBlockingCaseForPatientDoctor(cases, { excludeCaseId })
+    res.json({ allowed: !r.blocked, message: r.blocked ? r.message : '' })
   } catch (error) {
     res.status(500).json({ message: error.message })
   }
@@ -357,7 +501,7 @@ router.put('/:caseId/treatment-plan', auth(['dermatologist']), async (req, res) 
 
 async function patchDoctorReview(req, res) {
   try {
-    const { decision } = req.body
+    const { decision, comment } = req.body
     if (!['accepted', 'rejected'].includes(decision)) {
       return res.status(400).json({ message: 'decision must be accepted or rejected' })
     }
@@ -383,25 +527,49 @@ async function patchDoctorReview(req, res) {
       return res.status(400).json({ message: 'Case already reviewed' })
     }
 
+    if (decision === 'rejected') {
+      c.caseStatus = 'draft'
+      c.doctorTomorrowReminderAptYmd = ''
+      const text = typeof comment === 'string' ? comment.trim().slice(0, 1000) : ''
+      c.doctorRejectionComment = text
+    } else {
+      c.caseStatus = 'submitted'
+      c.doctorRejectionComment = ''
+      c.doctorTomorrowReminderAptYmd = ''
+    }
+
     c.doctorReviewStatus = decision
     await c.save()
 
     const doctor = await User.findById(doctorId).select('name')
-    const title = decision === 'accepted' ? 'Case accepted' : 'Case update'
-    const msg =
-      decision === 'accepted'
-        ? `Dr. ${doctor?.name || 'Your dermatologist'} accepted your pre-appointment case.`
-        : `Dr. ${doctor?.name || 'Your dermatologist'} could not proceed with your case request.`
+    const dname = doctor?.name || 'Your dermatologist'
 
-    try {
-      await notifyUser(c.patient, {
-        title,
-        message: msg,
-        link: '/patient/appointments',
-        type: 'case_review',
-      })
-    } catch (e) {
-      console.error('notify patient review:', e)
+    if (decision === 'accepted') {
+      try {
+        await notifyUser(c.patient, {
+          title: 'Case accepted',
+          message: `Dr. ${dname} accepted your pre-appointment case.`,
+          link: '/patient/appointments',
+          type: 'case_review',
+        })
+      } catch (e) {
+        console.error('notify patient review:', e)
+      }
+    } else {
+      let msg = `Dr. ${dname} declined your request. Your case is saved as a draft in My cases — you can send it to another doctor without redoing screenings.`
+      if (c.doctorRejectionComment) {
+        msg += ` Reason: ${c.doctorRejectionComment}`
+      }
+      try {
+        await notifyUser(c.patient, {
+          title: 'Case declined',
+          message: msg,
+          link: '/patient/cases',
+          type: 'case_declined_draft',
+        })
+      } catch (e) {
+        console.error('notify patient review:', e)
+      }
     }
 
     const populated = await MedicalCase.findById(c._id)
@@ -465,6 +633,16 @@ router.patch('/:caseId/mark-paid', auth(['patient']), async (req, res) => {
     if (!c) return res.status(404).json({ message: 'Case not found' })
     if (c.isCancelledByPatient) {
       return res.status(400).json({ message: 'Case is cancelled' })
+    }
+    if (c.paymentStatus === 'paid') {
+      return res.status(400).json({ message: 'Already marked paid' })
+    }
+    const pm = c.paymentMethod
+    if (pm === 'online') {
+      return res.status(400).json({ message: 'Online payments are recorded at submission' })
+    }
+    if (!['in_clinic', 'cod', 'cash'].includes(pm)) {
+      return res.status(400).json({ message: 'Mark paid is only for in-clinic payment' })
     }
 
     c.paymentStatus = 'paid'

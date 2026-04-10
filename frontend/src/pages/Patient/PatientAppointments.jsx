@@ -61,7 +61,9 @@ const PatientAppointments = () => {
   }
 
   const needsPayment = (c) =>
-    !c.isCancelledByPatient && c.paymentStatus !== 'paid' && (c.paymentMethod === 'cod' || c.paymentMethod === 'cash')
+    !c.isCancelledByPatient &&
+    c.paymentStatus !== 'paid' &&
+    (c.paymentMethod === 'in_clinic' || c.paymentMethod === 'cod' || c.paymentMethod === 'cash')
 
   const canCancel = (c) =>
     !c.isCancelledByPatient && (c.doctorReviewStatus === 'pending' || !c.doctorReviewStatus)
@@ -148,7 +150,9 @@ const PatientAppointments = () => {
         />
       ) : (
         <div className="space-y-4">
-          {cases.map((c, index) => {
+          {cases
+            .filter((c) => c.caseStatus !== 'draft')
+            .map((c, index) => {
             const st = reviewLabel(c)
             const doc = c.doctor
             return (
@@ -191,7 +195,7 @@ const PatientAppointments = () => {
                                 ? 'Paid'
                                 : c.paymentMethod === 'online'
                                   ? 'Paid (online)'
-                                  : 'Pending (COD / clinic)'}
+                                  : 'Pending (pay in clinic)'}
                             </span>
                           </div>
                         </div>

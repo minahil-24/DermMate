@@ -46,6 +46,8 @@ const userSchema = new mongoose.Schema({
   consultationFee: Number,
   availability: String,
   availabilitySlots: { type: [String], default: [] },
+  /** Days of week the doctor sees patients (0=Sun … 6=Sat, matches Date.getDay()). Empty = all days. */
+  availabilityWeekdays: { type: [Number], default: [] },
   certifications: { type: [certificationSchema], default: [] },
   isDoctorVerified: {
     type: Boolean,
@@ -65,6 +67,9 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+
+  /** IANA timezone for appointment reminders (e.g. Asia/Karachi); optional, falls back to env/UTC */
+  timeZone: { type: String, default: '' },
 
   // Auth Tokens
   verificationToken: String,

@@ -1,16 +1,24 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Search, MapPin, Star, GraduationCap, ArrowRight, Loader2, Filter, X, CheckCircle2, Info, Calendar } from 'lucide-react'
 import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
 import Breadcrumbs from '../../components/common/Breadcrumbs'
 import axios from 'axios'
+import { mergeBooking } from '../../utils/bookingFlow'
+import { useAuthStore } from '../../store/authStore'
+import { useToastStore } from '../../store/toastStore'
+import { fetchCanBookDoctor } from '../../utils/canBookDoctor'
 
 const cityFilters = ['All', 'Karachi', 'Lahore', 'Islamabad']
 
 const DermatologistSearch = () => {
     const navigate = useNavigate()
+    const location = useLocation()
+    const { token } = useAuthStore()
+    const addToast = useToastStore((s) => s.addToast)
+    const draftCaseId = location.state?.draftCaseId
     const [dermatologists, setDermatologists] = useState([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
@@ -135,6 +143,13 @@ const DermatologistSearch = () => {
                 )}
             </Card>
 
+            {draftCaseId && (
+                <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+                    <span className="font-semibold">Resending a draft:</span> choose a dermatologist, then schedule — your
+                    questionnaire and images are reused.
+                </div>
+            )}
+
             <div className="flex gap-3 mb-10 overflow-x-auto pb-2 scrollbar-none">
                 {cityFilters.map((city) => (
                     <button
@@ -223,17 +238,61 @@ const DermatologistSearch = () => {
                                     <Button
                                         variant="outline"
                                         className="flex-1 rounded-2xl border-2 font-black uppercase tracking-widest text-[10px] h-12"
-                                        onClick={() => navigate(`/patient/dermatologist/${doctor._id}`)}
+                                        onClick={() => navigate(`/patient/dermatologist/${doctor._id}`, { state: draftCaseId ? { draftCaseId } : undefined })}
                                     >
                                         Profile
                                     </Button>
                                     <Button
                                         className="flex-1 rounded-2xl font-black uppercase tracking-widest text-[10px] bg-slate-900 hover:bg-emerald-600 h-12"
-                                        onClick={() =>
-                                            navigate(`/patient/booking/complaint`, {
-                                                state: { doctorId: doctor._id, doctorName: doctor.name },
-                                            })
-                                        }
+                                        onClick={async () => {
+                                            if (draftCaseId) {
+                                                mergeBooking({
+                                                    draftCaseId,
+                                                    doctorId: doctor._id,
+                                                })
+                                                navigate('/patient/booking/schedule', {
+                                                    state: {
+                                                        doctorId: doctor._id,
+                                                        doctorName: doctor.name,
+                                                        draftCaseId,
+                                                        bookingFlow: true,
+                                                    },
+                                                })
+                                            } else {
+                                                if (token) {
+                                                    try {
+                                                        const data = await fetchCanBookDoctor(
+                                                            apiUrl,
+                                                            token,
+                                                            doctor._id
+                                                        )
+                                                        if (data && data.allowed === false) {
+                                                            addToast({
+                                                                type: 'error',
+                                                                title: 'Cannot book',
+                                                                message:
+                                                                    data.message ||
+                                                                    'You cannot start a new booking with this dermatologist right now.',
+                                                            })
+                                                            return
+                                                        }
+                                                    } catch (e) {
+                                                        addToast({
+                                                            type: 'error',
+                                                            title: 'Could not verify',
+                                                            message:
+                                                                e.response?.data?.message ||
+                                                                e.message ||
+                                                                'Please try again.',
+                                                        })
+                                                        return
+                                                    }
+                                                }
+                                                navigate('/patient/booking/complaint', {
+                                                    state: { doctorId: doctor._id, doctorName: doctor.name },
+                                                })
+                                            }
+                                        }}
                                     >
                                         Book Now
                                     </Button>

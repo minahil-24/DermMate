@@ -16,6 +16,20 @@ const DermatologistFees = () => {
   const [saving, setSaving] = useState(false)
   const [fee, setFee] = useState(user?.consultationFee ?? '')
   const [slots, setSlots] = useState(user?.availabilitySlots || [])
+  const [weekdays, setWeekdays] = useState(user?.availabilityWeekdays || [])
+
+  const WEEKDAY_OPTIONS = useMemo(
+    () => [
+      { v: 0, label: 'Sun' },
+      { v: 1, label: 'Mon' },
+      { v: 2, label: 'Tue' },
+      { v: 3, label: 'Wed' },
+      { v: 4, label: 'Thu' },
+      { v: 5, label: 'Fri' },
+      { v: 6, label: 'Sat' },
+    ],
+    []
+  )
 
   const ALL_SLOTS = useMemo(
     () => [
@@ -36,6 +50,7 @@ const DermatologistFees = () => {
         updateUser(res.data)
         setFee(res.data?.consultationFee ?? '')
         setSlots(res.data?.availabilitySlots || [])
+        setWeekdays(res.data?.availabilityWeekdays || [])
       } catch {
         // ignore
       } finally {
@@ -49,12 +64,22 @@ const DermatologistFees = () => {
     setSlots((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t].sort()))
   }
 
+  const toggleWeekday = (v) => {
+    setWeekdays((prev) =>
+      prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v].sort((a, b) => a - b)
+    )
+  }
+
   const save = async () => {
     try {
       setSaving(true)
       const res = await axios.patch(
         `${apiUrl}/api/auth/profile`,
-        { consultationFee: fee === '' ? '' : Number(fee), availabilitySlots: slots },
+        {
+          consultationFee: fee === '' ? '' : Number(fee),
+          availabilitySlots: slots,
+          availabilityWeekdays: weekdays,
+        },
         { headers: { Authorization: `Bearer ${token}` } }
       )
       if (res.data?.user) updateUser(res.data.user)
@@ -106,6 +131,32 @@ const DermatologistFees = () => {
                 className="w-full max-w-sm px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
                 placeholder="e.g., 1500"
               />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-800 mb-2">Working days</label>
+              <p className="text-xs text-gray-500 mb-3">
+                Patients can only pick appointment dates on these weekdays. Leave none selected to allow all days.
+              </p>
+              <div className="flex flex-wrap gap-2 max-w-xl">
+                {WEEKDAY_OPTIONS.map(({ v, label }) => {
+                  const on = weekdays.includes(v)
+                  return (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => toggleWeekday(v)}
+                      className={`px-3 py-2 rounded-lg text-sm font-semibold border transition-colors min-w-[3rem] ${
+                        on
+                          ? 'bg-emerald-600 text-white border-emerald-600'
+                          : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
 
             <div>
