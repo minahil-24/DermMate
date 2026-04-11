@@ -71,6 +71,10 @@ const userSchema = new mongoose.Schema({
   /** IANA timezone for appointment reminders (e.g. Asia/Karachi); optional, falls back to env/UTC */
   timeZone: { type: String, default: '' },
 
+  // Billing and Fees
+  feePaymentDeadline: { type: Date, default: null },
+  blockedDueToUnpaidFee: { type: Boolean, default: false },
+
   // Auth Tokens
   verificationToken: String,
   verificationTokenExpire: Date,

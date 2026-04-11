@@ -66,6 +66,7 @@ const Sidebar = () => {
     { to: '/dermatologist/appointments', icon: Calendar, label: 'Appointments' },
     { to: '/dermatologist/cases', icon: Briefcase, label: 'Patient Cases' },
     { to: '/dermatologist/fees', icon: Wallet, label: 'Fees' },
+    { to: '/dermatologist/payments', icon: FileText, label: 'System Billing' },
     { to: '/dermatologist/notifications', icon: Bell, label: 'Notifications' },
     { to: '/dermatologist/profile', icon: User, label: 'Profile' },
   ]

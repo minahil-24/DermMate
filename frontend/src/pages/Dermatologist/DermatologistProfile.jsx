@@ -7,6 +7,7 @@ import { useAuthStore } from '../../store/authStore'
 import { useToastStore } from '../../store/toastStore'
 import axios from 'axios'
 import { getCertPath, getCertStatus } from '../../utils/certificates'
+import HelpModal from '../../components/common/HelpModal'
 
 const DermatologistProfile = () => {
     const { user, updateUser, token } = useAuthStore()
@@ -311,6 +312,7 @@ const DermatologistProfile = () => {
                     </Card>
                 </div>
             </div>
+            <HelpModal />
         </div>
     )
 }

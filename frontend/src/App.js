@@ -12,7 +12,7 @@ import ResetPasswordPage from './pages/auth/ResetPasswordPage'
 import Onboarding from './pages/Onboarding'
 
 
-// Patient Pages
+// Patient Pages are
 import PatientDashboard from './pages/Patient/PatientDashboard'
 import ComplaintSelection from './pages/Patient/ComplaintSelection'
 import Questionnaire from './pages/Patient/Questionnaire'
@@ -49,6 +49,7 @@ import DermatologistNotifications from './pages/Dermatologist/DermatologistNotif
 import DermatologistProfile from './pages/Dermatologist/DermatologistProfile'
 import PatientChat from './pages/Dermatologist/PatientChat'
 import DermatologistFees from './pages/Dermatologist/DermatologistFees'
+import DermatologistPayments from './pages/Dermatologist/DermatologistPayments'
 
 // Admin Pages
 import AdminDashboard from './pages/admin/AdminDashboard'
@@ -395,6 +396,14 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={['dermatologist']}>
                 <DermatologistFees />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dermatologist/payments"
+            element={
+              <ProtectedRoute allowedRoles={['dermatologist']}>
+                <DermatologistPayments />
               </ProtectedRoute>
             }
           />

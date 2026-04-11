@@ -7,7 +7,10 @@ require('dotenv').config()
 const authRoutes = require('./routes/authRoutes')
 const notificationRoutes = require('./routes/notificationRoutes')
 const caseRoutes = require('./routes/caseRoutes')
+const billingRoutes = require('./routes/billingRoutes')
+const supportRoutes = require('./routes/supportRoutes')
 const { syncCertificationFlags } = require('./utils/certHelpers')
+const checkBlock = require('./middleware/checkBlock')
 
 const app = express()
 
@@ -76,7 +79,9 @@ async function migrateLegacyCertifications() {
 // Authentication Routes
 app.use('/api/auth', authRoutes)
 app.use('/api/notifications', notificationRoutes)
-app.use('/api/cases', caseRoutes)
+app.use('/api/cases', checkBlock, caseRoutes)
+app.use('/api/billing', checkBlock, billingRoutes)
+app.use('/api/support', supportRoutes)
 
 // Basic health check
 app.get('/health', (req, res) => {

@@ -7,6 +7,7 @@ import Breadcrumbs from '../../components/common/Breadcrumbs'
 import { useAuthStore } from '../../store/authStore'
 import { useToastStore } from '../../store/toastStore'
 import axios from 'axios'
+import HelpModal from '../../components/common/HelpModal'
 
 const PatientProfile = () => {
     const { user, updateUser, token } = useAuthStore()
@@ -217,6 +218,7 @@ const PatientProfile = () => {
                     </div>
                 </Card>
             </div>
+            <HelpModal />
         </div>
     )
 }

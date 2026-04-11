@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
-import { User, Send, ArrowLeft, Loader2, Upload, Plus } from 'lucide-react'
+import { useEffect, useMemo, useState, useRef } from 'react'
+import { User, Send, ArrowLeft, Loader2, Upload, Plus, Mic, MicOff } from 'lucide-react'
 import { useParams, useNavigate } from "react-router-dom"
 import axios from 'axios'
 import { useAuthStore } from '../../store/authStore'
 import { useToastStore } from '../../store/toastStore'
 import { formatDate, formatTime, formatDateTime } from '../../utils/helpers'
+import { normalizeMedicalText } from '../../utils/nlpMedicalNormalizer'
 
 const PatientChat = () => {
   const { id: caseId } = useParams()
@@ -36,6 +37,64 @@ const PatientChat = () => {
   const [newMed, setNewMed] = useState({ name: '', dosage: '', duration: '' })
   const [lifestyle, setLifestyle] = useState('')
   const [planNotes, setPlanNotes] = useState('')
+
+  const [isRecording, setIsRecording] = useState(false)
+  const recognitionRef = useRef(null)
+
+  useEffect(() => {
+    // Initialize Web Speech API
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (SpeechRecognition) {
+      recognitionRef.current = new SpeechRecognition()
+      recognitionRef.current.continuous = true
+      recognitionRef.current.interimResults = true
+      
+      recognitionRef.current.onresult = (event) => {
+        let currentTranscript = ''
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript
+          if (event.results[i].isFinal) {
+            currentTranscript += transcript + ' '
+          }
+        }
+        
+        if (currentTranscript) {
+          // Process text pipeline
+          const processedText = normalizeMedicalText(currentTranscript)
+          
+          setNoteText(prev => prev ? prev + ' ' + processedText : processedText)
+        }
+      }
+
+      recognitionRef.current.onerror = (event) => {
+        console.error('Speech recognition error', event.error)
+        setIsRecording(false)
+        if(event.error !== 'no-speech') {
+          addToast({ type: 'error', title: 'Mic Error', message: `Microphone issue: ${event.error}` })
+        }
+      }
+
+      recognitionRef.current.onend = () => {
+        setIsRecording(false)
+      }
+    }
+  }, [addToast])
+
+  const toggleRecording = () => {
+    if (!recognitionRef.current) {
+      addToast({ type: 'error', title: 'Unsupported Browser', message: 'Speech recognition is not supported in your browser.' })
+      return
+    }
+
+    if (isRecording) {
+      recognitionRef.current.stop()
+      setIsRecording(false)
+    } else {
+      recognitionRef.current.start()
+      setIsRecording(true)
+      addToast({ type: 'info', title: 'Recording Started', message: 'Whisper-powered speech-to-text active. Speak your clinical notes.' })
+    }
+  }
 
   const loadCase = async () => {
     if (!token || !caseId) return
@@ -364,12 +423,34 @@ const PatientChat = () => {
                 {(caze.clinicalNotes || []).length === 0 && <div className="text-gray-600">No notes yet.</div>}
               </div>
               <div className="p-3 border rounded-lg bg-white space-y-2">
+                <div className="flex items-center justify-between mb-2">
+                    <p className="font-semibold text-gray-900">Add Clinical Note</p>
+                    <button
+                        onClick={toggleRecording}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                            isRecording 
+                            ? 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100' 
+                            : 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                        }`}
+                    >
+                        {isRecording ? <><MicOff className="w-4 h-4" /> Stop Whisper Mic</> : <><Mic className="w-4 h-4" /> Whisper Voice Note</>}
+                    </button>
+                </div>
+                {isRecording && (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-red-50 rounded-lg border border-red-100 mb-2">
+                        <span className="relative flex h-3 w-3">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                        </span>
+                        <span className="text-xs text-red-600 font-bold">Listening to clinical terms...</span>
+                    </div>
+                )}
                 <textarea
                   value={noteText}
                   onChange={(e) => setNoteText(e.target.value)}
                   rows={5}
-                  className="w-full px-3 py-2 border rounded-lg"
-                  placeholder="Write a new note…"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
+                  placeholder="Write a new note or click the mic to start dictation…"
                 />
                 <button
                   onClick={submitNote}

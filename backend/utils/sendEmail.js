@@ -1,6 +1,6 @@
 const nodemailer = require("nodemailer");
 
-const sendEmail = async ({ to, subject, html }) => {
+const sendEmail = async ({ to, subject, html, replyTo }) => {
   const transporter = nodemailer.createTransport({
     service: "gmail",
     auth: {
@@ -12,6 +12,7 @@ const sendEmail = async ({ to, subject, html }) => {
   await transporter.sendMail({
     from: `"DermMate" <${process.env.EMAIL_USER}>`,
     to,
+    replyTo: replyTo || process.env.EMAIL_USER,
     subject,
     html,
   });

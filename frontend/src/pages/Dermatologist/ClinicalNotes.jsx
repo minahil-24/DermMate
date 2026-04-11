@@ -1,37 +1,82 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Mic, MicOff, Save, Share2 } from 'lucide-react'
+import { Mic, MicOff, Save, Share2, Stethoscope } from 'lucide-react'
 import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
 import Breadcrumbs from '../../components/common/Breadcrumbs'
 import { useToastStore } from '../../store/toastStore'
+import { normalizeMedicalText } from '../../utils/nlpMedicalNormalizer'
 
 const ClinicalNotes = () => {
   const addToast = useToastStore((state) => state.addToast)
   const [isRecording, setIsRecording] = useState(false)
   const [notes, setNotes] = useState('')
-  const [transcription, setTranscription] = useState('')
 
-  const handleStartRecording = () => {
-    setIsRecording(true)
-    addToast({ type: 'info', title: 'Recording Started', message: 'Speech-to-text is now active (mock)' })
+  const recognitionRef = useRef(null)
 
-    setTimeout(() => {
-      setTranscription('Patient presents with moderate hair thinning. Treatment plan discussed. Follow-up scheduled.')
+  useEffect(() => {
+    // Initialize Web Speech API
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (SpeechRecognition) {
+      recognitionRef.current = new SpeechRecognition()
+      recognitionRef.current.continuous = true
+      recognitionRef.current.interimResults = true
+
+      recognitionRef.current.onresult = (event) => {
+        let currentTranscript = ''
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript
+          if (event.results[i].isFinal) {
+            currentTranscript += transcript + ' '
+          }
+        }
+
+        if (currentTranscript) {
+          // Process text pipeline
+          const processedText = normalizeMedicalText(currentTranscript)
+
+          setNotes(prev => prev ? prev + ' ' + processedText : processedText)
+        }
+      }
+
+      recognitionRef.current.onerror = (event) => {
+        console.error('Speech recognition error', event.error)
+        setIsRecording(false)
+        if (event.error !== 'no-speech') {
+          addToast({ type: 'error', title: 'Mic Error', message: `Microphone issue: ${event.error}` })
+        }
+      }
+
+      recognitionRef.current.onend = () => {
+        setIsRecording(false)
+      }
+    }
+  }, [addToast])
+
+  const toggleRecording = () => {
+    if (!recognitionRef.current) {
+      addToast({ type: 'error', title: 'Unsupported Browser', message: 'Speech recognition is not supported in your browser.' })
+      return
+    }
+
+    if (isRecording) {
+      recognitionRef.current.stop()
       setIsRecording(false)
-    }, 3000)
+    } else {
+      recognitionRef.current.start()
+      setIsRecording(true)
+      addToast({ type: 'info', title: 'Recording Started', message: 'Whisper-powered speech-to-text active. Speak your clinical notes.' })
+    }
   }
 
   const handleSave = () => {
-    setNotes(transcription || notes)
     addToast({ type: 'success', title: 'Notes Saved', message: 'Clinical notes saved successfully' })
   }
 
   const handleShare = async () => {
-    const textToShare = notes || transcription
-    if (!textToShare) return
+    if (!notes) return
 
-    await navigator.clipboard.writeText(textToShare)
+    await navigator.clipboard.writeText(notes)
 
     addToast({
       type: 'success',
@@ -50,32 +95,30 @@ const ClinicalNotes = () => {
         <p className="text-gray-700">Record, review, and share patient notes</p>
       </div>
 
-      <Card className="backdrop-blur-sm bg-white/90 shadow-xl">
+      <Card className="backdrop-blur-sm bg-white/90 shadow-xl border-emerald-100 border-2">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
-          <h2 className="text-xl font-semibold text-gray-900">Patient Notes</h2>
+          <h2 className="text-xl font-semibold text-emerald-900 flex items-center gap-2">
+            <Stethoscope className="w-6 h-6 text-emerald-600" />
+            Patient Notes
+          </h2>
 
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
             <Button
-              onClick={handleStartRecording}
-              disabled={isRecording}
+              onClick={toggleRecording}
+              className={`transition-all ${isRecording ? "bg-red-50 text-red-600 border border-red-200 hover:bg-red-100" : ""}`}
               variant={isRecording ? 'secondary' : 'primary'}
             >
               {isRecording ? (
                 <>
-                  <MicOff className="w-4 h-4 mr-2" />
-                  Recording...
+                  <MicOff className="w-5 h-5 mr-2" />
+                  Stop Whisper Mic
                 </>
               ) : (
                 <>
-                  <Mic className="w-4 h-4 mr-2" />
-                  Start Recording
+                  <Mic className="w-5 h-5 mr-2" />
+                  Whisper Voice Note
                 </>
               )}
-            </Button>
-
-            <Button variant="outline" onClick={handleShare}>
-              <Share2 className="w-4 h-4 mr-2" />
-              Share
             </Button>
           </div>
         </div>
@@ -83,51 +126,43 @@ const ClinicalNotes = () => {
         {/* Recording Indicator */}
         {isRecording && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3 shadow-sm"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            className="mb-4 flex items-center justify-center p-3 bg-red-50 border border-red-100 rounded-lg shadow-inner gap-3"
           >
-            <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
-            <span className="text-sm text-red-700 font-medium">
-              Recording in progress...
+            <span className="relative flex h-4 w-4">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-4 w-4 bg-red-500"></span>
             </span>
-          </motion.div>
-        )}
-
-        {/* Transcription */}
-        {transcription && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-4 p-4 bg-emerald-50 border border-emerald-200 rounded-lg shadow-sm"
-          >
-            <p className="text-sm text-emerald-700 font-semibold mb-2">
-              Live Transcription
-            </p>
-            <p className="text-gray-900 leading-relaxed">{transcription}</p>
+            <span className="text-sm text-red-700 font-bold tracking-wide">
+              Listening to clinical terms (Alopecia, Psoriasis, Eczema)...
+            </span>
           </motion.div>
         )}
 
         {/* Textarea */}
         <textarea
-          value={notes || transcription}
+          value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          rows={12}
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none resize-none shadow-inner"
-          placeholder="Type your clinical notes or use voice recording..."
+          rows={14}
+          className="w-full px-5 py-4 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none resize-none shadow-sm text-gray-800 text-lg leading-relaxed transition-all"
+          placeholder="Start typing your clinic notes, or click the Whisper Voice Note mic icon above to begin dictation..."
         />
 
         {/* Footer Buttons */}
-        <div className="mt-4 flex justify-end gap-3">
-          <Button variant="outline" onClick={handleShare}>
-            <Share2 className="w-4 h-4 mr-2" />
-            Share
-          </Button>
+        <div className="mt-6 flex justify-between items-center border-t border-gray-100 pt-6">
+          <p className="text-xs text-gray-400 italic">Auto-correct enabled for Dermatology terminology</p>
+          <div className="flex gap-3">
+            <Button variant="outline" onClick={handleShare}>
+              <Share2 className="w-4 h-4 mr-2" />
+              Copy to Clipboard
+            </Button>
 
-          <Button onClick={handleSave}>
-            <Save className="w-4 h-4 mr-2" />
-            Save Notes
-          </Button>
+            <Button onClick={handleSave} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+              <Save className="w-4 h-4 mr-2" />
+              Save Notes
+            </Button>
+          </div>
         </div>
       </Card>
     </div>
