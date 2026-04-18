@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Search, MapPin, Star, GraduationCap, ArrowRight, Loader2, Filter, X, CheckCircle2, Info, Calendar } from 'lucide-react'
+import { Search, MapPin, Star, GraduationCap, ArrowRight, Loader2, Filter, CheckCircle2, Map, LayoutGrid } from 'lucide-react'
 import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
 import Breadcrumbs from '../../components/common/Breadcrumbs'
@@ -10,6 +10,7 @@ import { mergeBooking } from '../../utils/bookingFlow'
 import { useAuthStore } from '../../store/authStore'
 import { useToastStore } from '../../store/toastStore'
 import { fetchCanBookDoctor } from '../../utils/canBookDoctor'
+import DermatologistNearbyMap, { LAHORE } from '../../components/maps/DermatologistNearbyMap'
 
 const cityFilters = ['All', 'Karachi', 'Lahore', 'Islamabad']
 
@@ -30,6 +31,14 @@ const DermatologistSearch = () => {
         keyword: ''
     })
     const [showFilters, setShowFilters] = useState(false)
+    const [viewMode, setViewMode] = useState('list')
+    const [patientLat, setPatientLat] = useState(LAHORE[0])
+    const [patientLng, setPatientLng] = useState(LAHORE[1])
+    const [geoDenied, setGeoDenied] = useState(false)
+    const [geoAttempted, setGeoAttempted] = useState(false)
+    const [radiusKm, setRadiusKm] = useState(5)
+    const [mapDoctors, setMapDoctors] = useState([])
+    const [mapLoading, setMapLoading] = useState(false)
 
     const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000'
 
@@ -50,9 +59,60 @@ const DermatologistSearch = () => {
         fetchDermatologists()
     }, [])
 
+    useEffect(() => {
+        if (viewMode !== 'map' || geoAttempted) return
+        setGeoAttempted(true)
+        if (typeof navigator === 'undefined' || !navigator.geolocation) {
+            setGeoDenied(true)
+            return
+        }
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                setPatientLat(pos.coords.latitude)
+                setPatientLng(pos.coords.longitude)
+                setGeoDenied(false)
+            },
+            () => setGeoDenied(true),
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
+        )
+    }, [viewMode, geoAttempted])
+
+    useEffect(() => {
+        if (viewMode !== 'map') return
+        const ac = new AbortController()
+        const run = async () => {
+            setMapLoading(true)
+            try {
+                const res = await axios.get(`${apiUrl}/api/clinics/nearby`, {
+                    params: {
+                        lat: patientLat,
+                        lng: patientLng,
+                        radius: radiusKm,
+                        search: searchTerm,
+                        city: filters.city,
+                        specialty: filters.specialty,
+                        keyword: filters.keyword,
+                    },
+                    signal: ac.signal,
+                })
+                setMapDoctors(Array.isArray(res.data) ? res.data : [])
+            } catch (e) {
+                if (!ac.signal.aborted) setMapDoctors([])
+            } finally {
+                if (!ac.signal.aborted) setMapLoading(false)
+            }
+        }
+        run()
+        return () => ac.abort()
+    }, [viewMode, patientLat, patientLng, radiusKm, searchTerm, filters.city, filters.specialty, filters.keyword, apiUrl])
+
     const filteredDoctors = dermatologists.filter((doctor) => {
         const name = (doctor.name || '').toLowerCase()
-        const matchesSearch = !searchTerm || name.includes(searchTerm.toLowerCase())
+        const st = (searchTerm || '').toLowerCase()
+        const matchesSearch =
+            !searchTerm ||
+            name.includes(st) ||
+            (doctor.clinicName || '').toLowerCase().includes(st)
         const loc = (doctor.location || '').toLowerCase()
         const city = (doctor.city || '').toLowerCase()
         const matchesCity =
@@ -69,6 +129,8 @@ const DermatologistSearch = () => {
         return matchesSearch && matchesCity && matchesSpecialty && matchesKeyword
     })
 
+    const cardDoctors = viewMode === 'list' ? filteredDoctors : mapDoctors
+
     const getAvatar = (doc) => {
         if (doc.profilePhoto) return `${apiUrl}/${doc.profilePhoto.replace(/\\/g, '/')}`
         return doc.gender === 'female' ? '/imgs/default-female.png' : '/imgs/default-male.png'
@@ -83,7 +145,16 @@ const DermatologistSearch = () => {
                 <p className="text-slate-500 font-medium">Connect with verified dermatology experts for professional care.</p>
                 {!loading && !error && (
                     <p className="text-sm text-slate-600 mt-2">
-                        Showing {filteredDoctors.length} of {dermatologists.length} dermatologist{dermatologists.length !== 1 ? 's' : ''} (all registered doctors are listed; use search or filters to narrow down).
+                        {viewMode === 'list' ? (
+                            <>
+                                Showing {filteredDoctors.length} of {dermatologists.length} dermatologist
+                                {dermatologists.length !== 1 ? 's' : ''} (all registered doctors are listed; use search or filters to narrow down).
+                            </>
+                        ) : (
+                            <>
+                                Map view: {mapLoading ? 'Loading nearby…' : `${mapDoctors.length} specialist${mapDoctors.length !== 1 ? 's' : ''} with a map pin within ${radiusKm} km (filters apply).`}
+                            </>
+                        )}
                     </p>
                 )}
             </div>
@@ -100,18 +171,40 @@ const DermatologistSearch = () => {
                             className="w-full pl-10 pr-4 py-3.5 rounded-2xl border-none bg-slate-50 focus:ring-2 focus:ring-emerald-500 outline-none transition font-medium"
                         />
                     </div>
-                    <Button
-                        variant={showFilters ? 'primary' : 'outline'}
-                        onClick={() => setShowFilters(!showFilters)}
-                        className="flex items-center gap-2 rounded-2xl px-6"
-                    >
-                        <Filter className="w-4 h-4" /> Filters
-                    </Button>
+                    <div className="flex flex-wrap gap-2 md:gap-3">
+                        <div className="flex rounded-2xl border border-slate-200 overflow-hidden shrink-0">
+                            <button
+                                type="button"
+                                onClick={() => setViewMode('list')}
+                                className={`flex items-center gap-2 px-4 py-3 text-sm font-bold uppercase tracking-wider ${
+                                    viewMode === 'list' ? 'bg-emerald-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'
+                                }`}
+                            >
+                                <LayoutGrid className="w-4 h-4" /> List
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setViewMode('map')}
+                                className={`flex items-center gap-2 px-4 py-3 text-sm font-bold uppercase tracking-wider ${
+                                    viewMode === 'map' ? 'bg-emerald-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'
+                                }`}
+                            >
+                                <Map className="w-4 h-4" /> Map
+                            </button>
+                        </div>
+                        <Button
+                            variant={showFilters ? 'primary' : 'outline'}
+                            onClick={() => setShowFilters(!showFilters)}
+                            className="flex items-center gap-2 rounded-2xl px-6"
+                        >
+                            <Filter className="w-4 h-4" /> Filters
+                        </Button>
+                    </div>
                 </div>
 
                 {showFilters && (
                     <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="pt-6 mt-6 border-t border-slate-50">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                             <div className="space-y-2">
                                 <label className="text-xs font-bold text-slate-500 uppercase tracking-tighter">Location</label>
                                 <input 
@@ -135,8 +228,18 @@ const DermatologistSearch = () => {
                                     <option value="Pediatric">Pediatric</option>
                                 </select>
                             </div>
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-tighter">Keyword</label>
+                                <input
+                                    type="text"
+                                    value={filters.keyword}
+                                    onChange={(e) => setFilters({ ...filters, keyword: e.target.value })}
+                                    placeholder="Bio, clinic…"
+                                    className="w-full px-4 py-2.5 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500"
+                                />
+                            </div>
                             <div className="space-y-2 flex items-end">
-                                <Button variant="ghost" className="w-full" onClick={() => setFilters({city:'', specialty:'', keyword:''})}>Clear All</Button>
+                                <Button variant="ghost" className="w-full" onClick={() => setFilters({ city: '', specialty: '', keyword: '' })}>Clear All</Button>
                             </div>
                         </div>
                     </motion.div>
@@ -166,20 +269,71 @@ const DermatologistSearch = () => {
                 ))}
             </div>
 
-            {loading ? (
+            {viewMode === 'map' && (
+                <div className="mb-8 space-y-4">
+                    {geoDenied && (
+                        <div className="text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
+                            <span className="font-semibold">Location unavailable.</span> Map centered on Lahore — increase radius or use list view to see all doctors.
+                        </div>
+                    )}
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 bg-white rounded-2xl border border-slate-100 p-4 shadow-sm">
+                        <label className="text-xs font-black text-slate-600 uppercase tracking-wider shrink-0">
+                            Radius: {radiusKm} km
+                        </label>
+                        <input
+                            type="range"
+                            min={1}
+                            max={50}
+                            value={radiusKm}
+                            onChange={(e) => setRadiusKm(Number(e.target.value))}
+                            className="flex-1 w-full min-h-[2rem] accent-emerald-600"
+                        />
+                    </div>
+                    <div className="relative rounded-2xl overflow-hidden border border-slate-200 shadow-inner">
+                        {mapLoading && (
+                            <div className="absolute inset-0 bg-white/75 z-[400] flex flex-col items-center justify-center gap-2">
+                                <Loader2 className="w-10 h-10 animate-spin text-emerald-500" />
+                                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Updating nearby…</span>
+                            </div>
+                        )}
+                        <DermatologistNearbyMap
+                            patientLat={patientLat}
+                            patientLng={patientLng}
+                            radiusKm={radiusKm}
+                            doctors={mapDoctors}
+                            draftCaseId={draftCaseId}
+                        />
+                    </div>
+                    {!mapLoading && mapDoctors.length === 0 && (
+                        <Card className="text-center py-14 rounded-3xl border-2 border-dashed border-slate-100">
+                            <MapPin className="w-12 h-12 text-slate-200 mx-auto mb-3" />
+                            <p className="text-slate-900 font-black text-lg">No clinics with a map pin in this radius</p>
+                            <p className="text-slate-500 text-sm mt-2 max-w-md mx-auto">
+                                Doctors must set a clinic location on their profile. Try a larger radius or switch to list view.
+                            </p>
+                        </Card>
+                    )}
+                </div>
+            )}
+
+            {viewMode === 'list' && loading && (
                 <div className="flex flex-col items-center justify-center py-20">
                     <Loader2 className="w-12 h-12 text-emerald-500 animate-spin mb-4" />
                     <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Finding doctors...</p>
                 </div>
-            ) : filteredDoctors.length === 0 ? (
+            )}
+
+            {viewMode === 'list' && !loading && filteredDoctors.length === 0 && (
                 <Card className="text-center py-20 rounded-3xl border-2 border-dashed border-slate-100">
                     <Search className="w-12 h-12 text-slate-200 mx-auto mb-4" />
                     <p className="text-slate-900 font-black text-xl">No specialists match your search</p>
                     <p className="text-slate-400 mt-1">Try expanding your filters or check back later.</p>
                 </Card>
-            ) : (
+            )}
+
+            {cardDoctors.length > 0 && !(viewMode === 'list' && loading) && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    {filteredDoctors.map((doctor, index) => (
+                    {cardDoctors.map((doctor, index) => (
                         <motion.div
                             key={doctor._id}
                             initial={{ opacity: 0, y: 20 }}
@@ -211,9 +365,16 @@ const DermatologistSearch = () => {
                                 </div>
 
                                 <div className="space-y-3 mb-8 flex-grow">
+                                    {viewMode === 'map' && doctor.distanceKm != null && (
+                                        <p className="text-[10px] font-black uppercase text-emerald-600 tracking-wide">
+                                            {doctor.distanceKm} km from search center
+                                        </p>
+                                    )}
                                     <div className="flex items-center text-xs font-bold text-slate-500 gap-2">
                                         <MapPin className="w-4 h-4 text-emerald-500/50" />
-                                        <span className="truncate">{doctor.location || doctor.city || 'Pakistan'}</span>
+                                        <span className="truncate">
+                                            {doctor.clinicAddress || doctor.location || doctor.city || 'Pakistan'}
+                                        </span>
                                     </div>
                                     <div className="flex items-center text-xs font-bold text-slate-500 gap-2">
                                         <GraduationCap className="w-4 h-4 text-emerald-500/50" />

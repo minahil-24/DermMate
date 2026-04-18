@@ -14,9 +14,15 @@ const Questionnaire = () => {
   const location = useLocation()
   const complaintType = location.state?.complaintType || 'hair'
   const navigate = useNavigate()
-  const { register, handleSubmit, formState: { errors }, trigger } = useForm()
+  const { register, handleSubmit, formState: { errors }, trigger, watch } = useForm()
   const [currentStep, setCurrentStep] = useState(1)
   const addToast = useToastStore((state) => state.addToast)
+
+  const getWordCount = (value) => {
+    const text = String(value || '').trim()
+    if (!text) return 0
+    return text.split(/\s+/).length
+  }
 
   const isBooking = location.pathname.includes('/patient/booking/')
 
@@ -133,12 +139,20 @@ const Questionnaire = () => {
                         ))}
                       </select>
                     ) : field.type === 'textarea' ? (
-                      <textarea
-                        {...register(field.name)}
-                        rows={4}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
-                        placeholder="Enter details..."
-                      />
+                      <>
+                        <textarea
+                          {...register(field.name, {
+                            validate: (value) =>
+                              getWordCount(value) <= 100 || 'Please enter no more than 100 words',
+                          })}
+                          rows={4}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                          placeholder="Enter details..."
+                        />
+                        <p className={`text-xs ${getWordCount(watch(field.name)) > 100 ? 'text-red-600' : 'text-gray-500'}`}>
+                          {getWordCount(watch(field.name))}/100 words
+                        </p>
+                      </>
                     ) : (
                       <input
                         {...register(field.name, { required: field.name === 'location' })}
@@ -148,7 +162,7 @@ const Questionnaire = () => {
                       />
                     )}
                     {errors[field.name] && (
-                      <p className="text-sm text-red-600">This field is required</p>
+                      <p className="text-sm text-red-600">{errors[field.name].message || 'This field is required'}</p>
                     )}
                   </div>
                 ))}

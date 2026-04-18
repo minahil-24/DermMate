@@ -21,6 +21,7 @@ import { formatDate, formatTime } from '../../utils/helpers'
 import { useToastStore } from '../../store/toastStore'
 import { useAuthStore } from '../../store/authStore'
 import EmptyState from '../../components/common/EmptyState'
+import AlopeciaAiDoctorPanel from '../../components/doctor/AlopeciaAiDoctorPanel'
 
 function fileUrl(apiUrl, filePath) {
   if (!filePath) return ''
@@ -320,21 +321,26 @@ const DermatologistAppointments = () => {
                   <ImageIcon className="w-4 h-4 text-emerald-600" />
                   Affected area images ({selectedCase.affectedImages.length})
                 </h3>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-col gap-4">
                   {selectedCase.affectedImages.map((img, i) => (
-                    <a
-                      key={i}
-                      href={fileUrl(apiUrl, img.filePath)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block w-24 h-24 rounded-lg overflow-hidden border border-gray-200 bg-gray-100"
-                    >
-                      <img
-                        src={fileUrl(apiUrl, img.filePath)}
-                        alt={img.originalName || `Image ${i + 1}`}
-                        className="w-full h-full object-cover"
-                      />
-                    </a>
+                    <div key={i} className="flex flex-wrap gap-3 items-start">
+                      <a
+                        href={fileUrl(apiUrl, img.filePath)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block w-24 h-24 shrink-0 rounded-lg overflow-hidden border border-gray-200 bg-gray-100"
+                      >
+                        <img
+                          src={fileUrl(apiUrl, img.filePath)}
+                          alt={img.originalName || `Image ${i + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                      </a>
+                      <div className="min-w-0 flex-1 max-w-lg">
+                        <p className="text-xs text-gray-500 truncate">{img.originalName || `Image ${i + 1}`}</p>
+                        <AlopeciaAiDoctorPanel apiUrl={apiUrl} analysis={img.aiAnalysis} />
+                      </div>
+                    </div>
                   ))}
                 </div>
               </div>

@@ -119,10 +119,28 @@ const BookingReviewSubmit = () => {
       })
       navigate('/patient/cases')
     } catch (err) {
+      const data = err.response?.data
+      if (err.response?.status === 409 && data?.code === 'slot_unavailable') {
+        addToast({
+          type: 'warning',
+          title: 'Slot no longer available',
+          message: data?.message || 'Someone else booked this time. Please pick another slot.',
+        })
+        const snap = loadBooking()
+        navigate('/patient/booking/schedule', {
+          state: {
+            doctorId: snap.doctorId,
+            complaintType: snap.complaintType,
+            bookingFlow: true,
+            draftCaseId: snap.draftCaseId,
+          },
+        })
+        return
+      }
       addToast({
         type: 'error',
         title: 'Submit failed',
-        message: err.response?.data?.message || err.message,
+        message: data?.message || err.message,
       })
     } finally {
       setSubmitting(false)

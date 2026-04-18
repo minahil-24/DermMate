@@ -7,6 +7,7 @@ require('dotenv').config()
 const authRoutes = require('./routes/authRoutes')
 const notificationRoutes = require('./routes/notificationRoutes')
 const caseRoutes = require('./routes/caseRoutes')
+const clinicRoutes = require('./routes/clinicRoutes')
 const billingRoutes = require('./routes/billingRoutes')
 const supportRoutes = require('./routes/supportRoutes')
 const { syncCertificationFlags } = require('./utils/certHelpers')
@@ -28,6 +29,13 @@ mongoose.connect(process.env.MONGO_URI)
     console.log('MongoDB Connected');
     console.log(`Connected to DB: ${mongoose.connection.name}`);
     await migrateLegacyCertifications();
+
+    try {
+      const User = require('./models/User')
+      await User.syncIndexes()
+    } catch (e) {
+      console.warn('User.syncIndexes:', e.message)
+    }
 
     const cron = require('node-cron')
     const { runTomorrowAppointmentReminders } = require('./jobs/tomorrowAppointmentReminder')
@@ -78,6 +86,7 @@ async function migrateLegacyCertifications() {
 
 // Authentication Routes
 app.use('/api/auth', authRoutes)
+app.use('/api/clinics', clinicRoutes)
 app.use('/api/notifications', notificationRoutes)
 app.use('/api/cases', checkBlock, caseRoutes)
 app.use('/api/billing', checkBlock, billingRoutes)

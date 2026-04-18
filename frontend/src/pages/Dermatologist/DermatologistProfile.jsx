@@ -8,6 +8,7 @@ import { useToastStore } from '../../store/toastStore'
 import axios from 'axios'
 import { getCertPath, getCertStatus } from '../../utils/certificates'
 import HelpModal from '../../components/common/HelpModal'
+import ClinicLocationPicker from '../../components/maps/ClinicLocationPicker'
 
 const DermatologistProfile = () => {
     const { user, updateUser, token } = useAuthStore()
@@ -31,6 +32,9 @@ const DermatologistProfile = () => {
         consultationFee: user?.consultationFee || '',
         availability: user?.availability || '',
         gender: user?.gender || 'male',
+        clinicAddress: user?.clinicAddress || '',
+        clinicLatitude: Number.isFinite(Number(user?.clinicLatitude)) ? Number(user.clinicLatitude) : null,
+        clinicLongitude: Number.isFinite(Number(user?.clinicLongitude)) ? Number(user.clinicLongitude) : null,
     })
 
     const [profilePhoto, setProfilePhoto] = useState(null)
@@ -61,6 +65,9 @@ const DermatologistProfile = () => {
                     consultationFee: userData.consultationFee || '',
                     availability: userData.availability || '',
                     gender: userData.gender || 'male',
+                    clinicAddress: userData.clinicAddress || '',
+                    clinicLatitude: Number.isFinite(Number(userData.clinicLatitude)) ? Number(userData.clinicLatitude) : null,
+                    clinicLongitude: Number.isFinite(Number(userData.clinicLongitude)) ? Number(userData.clinicLongitude) : null,
                 })
                 if (userData.profilePhoto) {
                     setPreviewUrl(`${apiUrl}/${userData.profilePhoto.replace(/\\/g, '/')}`)
@@ -101,6 +108,11 @@ const DermatologistProfile = () => {
                 consultationFee: formData.consultationFee,
                 availability: formData.availability,
                 gender: formData.gender,
+                clinicAddress: formData.clinicAddress,
+            }
+            if (Number.isFinite(formData.clinicLatitude) && Number.isFinite(formData.clinicLongitude)) {
+                patchBody.clinicLatitude = formData.clinicLatitude
+                patchBody.clinicLongitude = formData.clinicLongitude
             }
 
             const response = await axios.patch(`${apiUrl}/api/auth/profile`, patchBody, {
@@ -239,6 +251,33 @@ const DermatologistProfile = () => {
                                     <input type="text" value={formData.location} onChange={(e) => setFormData({...formData, location: e.target.value})} className="w-full p-2 border rounded-lg" />
                                 ) : <p className="text-gray-900 py-2">{user?.location || 'N/A'}</p>}
                             </div>
+
+                            {!isEditing && (user?.clinicAddress || (Number.isFinite(user?.clinicLatitude) && Number.isFinite(user?.clinicLongitude))) && (
+                                <div className="md:col-span-2 space-y-1 text-sm border border-emerald-100 bg-emerald-50/40 rounded-lg p-4">
+                                    <label className="font-semibold text-gray-700">Clinic location (map)</label>
+                                    <p className="text-gray-900">{user?.clinicAddress || '—'}</p>
+                                    {Number.isFinite(user?.clinicLatitude) && Number.isFinite(user?.clinicLongitude) && (
+                                        <p className="text-xs text-gray-500">{user.clinicLatitude.toFixed(5)}, {user.clinicLongitude.toFixed(5)}</p>
+                                    )}
+                                </div>
+                            )}
+
+                            {isEditing && (
+                                <div className="md:col-span-2 border border-gray-200 rounded-xl p-4 bg-slate-50/50">
+                                    <h3 className="text-lg font-bold text-gray-900 mb-2">Clinic on map</h3>
+                                    <p className="text-xs text-gray-500 mb-4">
+                                        Patients can find you on the nearby map after you save. Leave blank if you prefer not to show a map pin.
+                                    </p>
+                                    <ClinicLocationPicker
+                                        apiUrl={apiUrl}
+                                        clinicAddress={formData.clinicAddress}
+                                        clinicLatitude={formData.clinicLatitude}
+                                        clinicLongitude={formData.clinicLongitude}
+                                        onChange={(u) => setFormData((prev) => ({ ...prev, ...u }))}
+                                        disabled={false}
+                                    />
+                                </div>
+                            )}
 
                             <div className="space-y-2 text-sm">
                                 <label className="font-semibold text-gray-700">Consultation Fee (PKR)</label>

@@ -10,6 +10,8 @@ const affectedEntry = {
   originalName: { type: String, default: '' },
   complaintType: { type: String, enum: ['skin', 'hair', 'nails'], required: true },
   uploadedAt: { type: Date, default: Date.now },
+  /** Doctor-only: alopecia YOLO output; stripped for patient API responses */
+  aiAnalysis: { type: mongoose.Schema.Types.Mixed, default: null },
 }
 
 const noteEntry = new mongoose.Schema(

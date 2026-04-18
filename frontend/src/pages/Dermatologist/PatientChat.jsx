@@ -6,6 +6,7 @@ import { useAuthStore } from '../../store/authStore'
 import { useToastStore } from '../../store/toastStore'
 import { formatDate, formatTime, formatDateTime } from '../../utils/helpers'
 import { normalizeMedicalText } from '../../utils/nlpMedicalNormalizer'
+import AlopeciaAiDoctorPanel from '../../components/doctor/AlopeciaAiDoctorPanel'
 
 const PatientChat = () => {
   const { id: caseId } = useParams()
@@ -289,8 +290,8 @@ const PatientChat = () => {
           ) : !caze ? (
             <div className="text-center text-gray-600 py-10">Case not found.</div>
           ) : (
-            // Report Tab
-            activeTab === 'Report' && (
+            <>
+            {activeTab === 'Report' && (
               <div className="space-y-6">
                 <h2 className="text-xl font-bold text-gray-800 border-b pb-2">Reports</h2>
                 <div className="space-y-3">
@@ -340,7 +341,7 @@ const PatientChat = () => {
                 </button>
               </div>
             </div>
-          ))};
+          )}
 
           {activeTab === 'comparison' && (
             <div className="space-y-6">
@@ -577,6 +578,7 @@ const PatientChat = () => {
                     <div className="p-3">
                       <p className="text-sm font-semibold text-gray-900 truncate">{img.originalName || 'Image'}</p>
                       <p className="text-xs text-gray-500">{img.uploadedAt ? formatDateTime(img.uploadedAt) : '—'}</p>
+                      <AlopeciaAiDoctorPanel apiUrl={apiUrl} analysis={img.aiAnalysis} />
                     </div>
                   </div>
                 ))}
@@ -584,7 +586,8 @@ const PatientChat = () => {
               </div>
             </div>
           )}
-          )
+            </>
+          )}
 
         </div>
       </div>

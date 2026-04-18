@@ -5,7 +5,7 @@ import axios from 'axios'
 import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
 import Breadcrumbs from '../../components/common/Breadcrumbs'
-import { formatTime } from '../../utils/helpers'
+import { formatTime, isSlotBooked } from '../../utils/helpers'
 import { mergeBooking, loadBooking } from '../../utils/bookingFlow'
 import { useAuthStore } from '../../store/authStore'
 import { useToastStore } from '../../store/toastStore'
@@ -28,6 +28,7 @@ const BookingSchedule = () => {
   const [selectedDate, setSelectedDate] = useState(null)
   const [selectedTime, setSelectedTime] = useState(null)
   const [paymentMethod, setPaymentMethod] = useState('in_clinic')
+  const [bookedSlots, setBookedSlots] = useState([])
 
   const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000'
 
@@ -97,6 +98,28 @@ const BookingSchedule = () => {
     }
     run()
   }, [doctorId, token, draftCaseId, apiUrl, navigate, addToast])
+
+  useEffect(() => {
+    if (!doctorId || !token) return
+    const loadBooked = async () => {
+      try {
+        const res = await axios.get(`${apiUrl}/api/cases/doctor/${doctorId}/booked-slots?days=60`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        setBookedSlots(Array.isArray(res.data?.booked) ? res.data.booked : [])
+      } catch {
+        setBookedSlots([])
+      }
+    }
+    loadBooked()
+  }, [doctorId, token, apiUrl])
+
+  useEffect(() => {
+    if (!selectedDate || !selectedTime) return
+    if (isSlotBooked(bookedSlots, selectedDate, selectedTime)) {
+      setSelectedTime(null)
+    }
+  }, [bookedSlots, selectedDate, selectedTime])
 
   const availableDates = useMemo(() => {
     const base = Array.from({ length: 30 }, (_, i) => {
@@ -244,23 +267,28 @@ const BookingSchedule = () => {
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto">
-              {availableSlots.map((time) => (
-                <button
-                  key={time}
-                  type="button"
-                  onClick={() => setSelectedTime(time)}
-                  disabled={!selectedDate}
-                  className={`p-3 rounded-lg text-center text-sm ${
-                    !selectedDate
-                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                      : selectedTime === time
-                        ? 'bg-emerald-600 text-white'
-                        : 'bg-gray-100 hover:bg-gray-200 text-gray-900'
-                  }`}
-                >
-                  {formatTime(time)}
-                </button>
-              ))}
+              {availableSlots.map((time) => {
+                const taken = Boolean(selectedDate && isSlotBooked(bookedSlots, selectedDate, time))
+                return (
+                  <button
+                    key={time}
+                    type="button"
+                    onClick={() => !taken && setSelectedTime(time)}
+                    disabled={!selectedDate || taken}
+                    title={taken ? 'This slot is already booked' : undefined}
+                    className={`p-3 rounded-lg text-center text-sm ${
+                      !selectedDate || taken
+                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        : selectedTime === time
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-gray-100 hover:bg-gray-200 text-gray-900'
+                    }`}
+                  >
+                    {formatTime(time)}
+                    {taken ? <span className="block text-[10px] font-normal mt-0.5">Booked</span> : null}
+                  </button>
+                )
+              })}
             </div>
           )}
         </Card>
@@ -303,7 +331,11 @@ const BookingSchedule = () => {
           size="lg"
           onClick={goReview}
           disabled={
-            !selectedDate || !selectedTime || availableSlots.length === 0 || availableDates.length === 0
+            !selectedDate ||
+            !selectedTime ||
+            (selectedDate && selectedTime && isSlotBooked(bookedSlots, selectedDate, selectedTime)) ||
+            availableSlots.length === 0 ||
+            availableDates.length === 0
           }
         >
           Review & submit

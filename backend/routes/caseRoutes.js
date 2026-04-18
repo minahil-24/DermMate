@@ -1,5 +1,6 @@
 const express = require('express')
 const path = require('path')
+const fs = require('fs')
 const mongoose = require('mongoose')
 const MedicalCase = require('../models/Case')
 const User = require('../models/User')
@@ -7,6 +8,9 @@ const auth = require('../middleware/auth')
 const upload = require('../middleware/caseUpload')
 const doctorUpload = require('../middleware/caseDoctorUpload')
 const { notifyUser } = require('../utils/notify')
+const { stripAffectedAiForPatient, stripAffectedAiForPatientList } = require('../utils/caseSanitize')
+const { processHairAffectedUpload, buildAffectedImagesWithHairAnalysis } = require('../utils/yoloAlopecia')
+const { isDoctorSlotTaken, getDoctorBookedSlots } = require('../utils/appointmentSlots')
 
 const router = express.Router()
 const backendRoot = path.join(__dirname, '..')
@@ -65,6 +69,41 @@ router.post('/upload', auth(['patient']), upload.single('file'), async (req, res
     if (!req.file) {
       return res.status(400).json({ message: 'No file uploaded' })
     }
+    const isAffected = req.query.type === 'affected'
+    // Multipart body field (reliable); query can be dropped by some proxies / clients
+    const complaintType = String(
+      req.query.complaintType || req.body.complaintType || ''
+    )
+      .trim()
+      .toLowerCase()
+
+    if (isAffected && complaintType === 'hair') {
+      try {
+        const hair = await processHairAffectedUpload(req.file, backendRoot)
+        if (!hair.ok) {
+          try {
+            fs.unlinkSync(req.file.path)
+          } catch (_) {}
+          const raw = hair.raw || {}
+          return res.status(400).json({
+            message:
+              raw.message ||
+              'Image did not pass automated checks for hair/scalp photos. Please try another photo.',
+            code: 'alopecia_image_rejected',
+          })
+        }
+      } catch (e) {
+        try {
+          fs.unlinkSync(req.file.path)
+        } catch (_) {}
+        console.error('Hair YOLO upload:', e.message)
+        return res.status(503).json({
+          message:
+            'Hair image analysis is unavailable. Start the alopecia AI service from the yolo_system/backend folder (python main.py), or set YOLO_ALOPECIA_URL to your API base URL.',
+        })
+      }
+    }
+
     const filePath = relPath(req.file.path)
     res.json({
       filePath,
@@ -126,6 +165,23 @@ router.post('/', auth(['patient']), async (req, res) => {
       paymentStatus = 'paid'
     }
 
+    const slotTaken = await isDoctorSlotTaken(
+      MedicalCase,
+      doctorId,
+      appointmentDate,
+      appointmentTimeSlot,
+      null
+    )
+    if (slotTaken) {
+      return res.status(409).json({
+        message:
+          'This appointment slot is no longer available. Please choose another date or time for this dermatologist.',
+        code: 'slot_unavailable',
+      })
+    }
+
+    const affectedWithAi = await buildAffectedImagesWithHairAnalysis(aff, complaintType, backendRoot)
+
     const doc = new MedicalCase({
       patient: req.user.id,
       doctor: doctorId,
@@ -135,11 +191,7 @@ router.post('/', auth(['patient']), async (req, res) => {
         filePath: f.filePath,
         originalName: f.originalName || '',
       })),
-      affectedImages: aff.map((f) => ({
-        filePath: f.filePath,
-        originalName: f.originalName || '',
-        complaintType: f.complaintType || complaintType,
-      })),
+      affectedImages: affectedWithAi,
       appointmentDate: new Date(appointmentDate),
       appointmentTimeSlot,
       consultationFee: Number(consultationFee) || doctor.consultationFee || 0,
@@ -167,7 +219,10 @@ router.post('/', auth(['patient']), async (req, res) => {
       console.error('notifyUser doctor case:', e)
     }
 
-    res.status(201).json({ message: 'Case submitted', case: populated })
+    res.status(201).json({
+      message: 'Case submitted',
+      case: stripAffectedAiForPatient(populated),
+    })
   } catch (error) {
     res.status(500).json({ message: error.message })
   }
@@ -211,6 +266,21 @@ router.post('/resubmit/:caseId', auth(['patient']), async (req, res) => {
     c.appointmentTimeSlot = appointmentTimeSlot
     c.consultationFee = Number(consultationFee) || doctor.consultationFee || 0
 
+    const slotTaken = await isDoctorSlotTaken(
+      MedicalCase,
+      doctorId,
+      appointmentDate,
+      appointmentTimeSlot,
+      caseId
+    )
+    if (slotTaken) {
+      return res.status(409).json({
+        message:
+          'This appointment slot is no longer available. Please choose another date or time for this dermatologist.',
+        code: 'slot_unavailable',
+      })
+    }
+
     if (c.paymentStatus === 'paid') {
       // No second charge (e.g. prior online payment)
     } else {
@@ -242,7 +312,7 @@ router.post('/resubmit/:caseId', auth(['patient']), async (req, res) => {
       console.error('notifyUser doctor resubmit:', e)
     }
 
-    res.json({ message: 'Resubmitted', case: populated })
+    res.json({ message: 'Resubmitted', case: stripAffectedAiForPatient(populated) })
   } catch (error) {
     res.status(500).json({ message: error.message })
   }
@@ -254,7 +324,7 @@ router.get('/my', auth(['patient']), async (req, res) => {
       .populate('doctor', 'name specialty email profilePhoto')
       .sort({ createdAt: -1 })
       .lean()
-    res.json(list)
+    res.json(stripAffectedAiForPatientList(list))
   } catch (error) {
     res.status(500).json({ message: error.message })
   }
@@ -294,6 +364,21 @@ router.get('/can-book/:doctorId', auth(['patient']), async (req, res) => {
   }
 })
 
+/** Booked date+time slots for a doctor (patient scheduling UI). */
+router.get('/doctor/:doctorId/booked-slots', auth(['patient']), async (req, res) => {
+  try {
+    const doctorId = String(req.params.doctorId || '').trim()
+    if (!doctorId || !mongoose.Types.ObjectId.isValid(doctorId)) {
+      return res.status(400).json({ message: 'Invalid doctor id' })
+    }
+    const days = Math.min(90, Math.max(7, parseInt(String(req.query.days || '45'), 10) || 45))
+    const booked = await getDoctorBookedSlots(MedicalCase, doctorId, days)
+    res.json({ booked })
+  } catch (error) {
+    res.status(500).json({ message: error.message })
+  }
+})
+
 // Case details (patient or assigned dermatologist)
 router.get('/:caseId', auth(['patient', 'dermatologist']), async (req, res) => {
   try {
@@ -317,6 +402,9 @@ router.get('/:caseId', auth(['patient', 'dermatologist']), async (req, res) => {
       return res.status(403).json({ message: 'Not authorized for this case' })
     }
 
+    if (req.user.role === 'patient') {
+      return res.json(stripAffectedAiForPatient(c))
+    }
     res.json(c)
   } catch (error) {
     res.status(500).json({ message: error.message })
@@ -618,7 +706,7 @@ router.patch('/:caseId/cancel', auth(['patient']), async (req, res) => {
     const populated = await MedicalCase.findById(c._id)
       .populate('doctor', 'name')
       .lean()
-    res.json({ message: 'Cancelled', case: populated })
+    res.json({ message: 'Cancelled', case: stripAffectedAiForPatient(populated) })
   } catch (error) {
     res.status(500).json({ message: error.message })
   }
@@ -652,7 +740,7 @@ router.patch('/:caseId/mark-paid', auth(['patient']), async (req, res) => {
       .populate('doctor', 'name')
       .lean()
 
-    res.json({ message: 'Payment recorded', case: populated })
+    res.json({ message: 'Payment recorded', case: stripAffectedAiForPatient(populated) })
   } catch (error) {
     res.status(500).json({ message: error.message })
   }

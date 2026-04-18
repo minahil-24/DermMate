@@ -23,6 +23,7 @@ const App = () => {
     const [historyImageUrl, setHistoryImageUrl] = useState(null);
     const [historyImageError, setHistoryImageError] = useState(null);
     const [historyImageLoading, setHistoryImageLoading] = useState(false);
+    const [imageQualityError, setImageQualityError] = useState(null);
 
     // Camera State
     const [inputMode, setInputMode] = useState('upload'); // 'upload' or 'camera'
@@ -194,6 +195,7 @@ const App = () => {
 
     const resetDetection = () => {
         setResults(null);
+        setImageQualityError(null);
         if (inputMode === 'camera') {
             setShowCameraPreview(true);
             setSelectedFile(null);
@@ -203,14 +205,128 @@ const App = () => {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    const onFileChange = (e) => {
+    const checkImageBlur = (file) => {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    // Check resolution
+                    if (img.width < 128 || img.height < 128) {
+                        resolve({
+                            valid: false,
+                            reason: 'Low resolution',
+                            message: 'The image resolution is too low. Please upload a higher quality image.'
+                        });
+                        return;
+                    }
+
+                    // Check blur using Laplacian variance on canvas
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0);
+
+                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    const data = imageData.data;
+
+                    // Convert to grayscale
+                    const gray = [];
+                    for (let i = 0; i < data.length; i += 4) {
+                        const r = data[i];
+                        const g = data[i + 1];
+                        const b = data[i + 2];
+                        gray.push(0.299 * r + 0.587 * g + 0.114 * b);
+                    }
+
+                    // Apply Laplacian kernel to detect edges
+                    const width = canvas.width;
+                    const height = canvas.height;
+                    let laplacianSum = 0;
+                    let count = 0;
+
+                    const laplacianKernel = [
+                        [0, -1, 0],
+                        [-1, 4, -1],
+                        [0, -1, 0]
+                    ];
+
+                    for (let y = 1; y < height - 1; y++) {
+                        for (let x = 1; x < width - 1; x++) {
+                            let sum = 0;
+                            for (let ky = -1; ky <= 1; ky++) {
+                                for (let kx = -1; kx <= 1; kx++) {
+                                    const idx = (y + ky) * width + (x + kx);
+                                    sum += gray[idx] * laplacianKernel[ky + 1][kx + 1];
+                                }
+                            }
+                            laplacianSum += sum * sum;
+                            count++;
+                        }
+                    }
+
+                    const laplacianVar = count > 0 ? laplacianSum / count : 0;
+
+                    if (laplacianVar < 20) {
+                        resolve({
+                            valid: false,
+                            reason: 'Image is blurry or unclear',
+                            message: 'Please upload a clear, well-lit image of your scalp or head.'
+                        });
+                        return;
+                    }
+
+                    // Check exposure
+                    const avgBrightness = gray.reduce((a, b) => a + b, 0) / gray.length;
+
+                    if (avgBrightness < 40) {
+                        resolve({
+                            valid: false,
+                            reason: 'Image is too dark',
+                            message: 'The image is too dark. Please upload a well-lit image.'
+                        });
+                        return;
+                    }
+
+                    if (avgBrightness > 220) {
+                        resolve({
+                            valid: false,
+                            reason: 'Image is overexposed',
+                            message: 'The image is overexposed. Please ensure proper lighting without glare.'
+                        });
+                        return;
+                    }
+
+                    resolve({ valid: true });
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+    };
+
+    const onFileChange = async (e) => {
         const file = e.target.files[0];
         if (file && file.type.startsWith('image/')) {
+            setImageQualityError(null);
+            
+            // Check image quality first
+            const qualityCheck = await checkImageBlur(file);
+            
+            if (!qualityCheck.valid) {
+                setImageQualityError(qualityCheck);
+                setSelectedFile(null);
+                setPreviewUrl(null);
+                return;
+            }
+
             if (previewUrl) URL.revokeObjectURL(previewUrl);
             setPreviewUrl(URL.createObjectURL(file));
             setSelectedFile(file);
             setResults(null);
         } else {
+            setImageQualityError(null);
             alert('Please select a valid image file');
         }
     };
@@ -317,13 +433,13 @@ const App = () => {
                         <div className="flex bg-white/5 p-1 rounded-2xl mb-8">
                             <button
                                 className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all ${inputMode === 'upload' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-400 hover:text-slate-200'}`}
-                                onClick={() => { setInputMode('upload'); stopCamera(); setResults(null); setSelectedFile(null); }}
+                                onClick={() => { setInputMode('upload'); stopCamera(); setResults(null); setSelectedFile(null); setImageQualityError(null); }}
                             >
                                 <Upload size={16} className="inline mr-2" /> Upload
                             </button>
                             <button
                                 className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all ${inputMode === 'camera' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-400 hover:text-slate-200'}`}
-                                onClick={() => { setInputMode('camera'); startCamera(); }}
+                                onClick={() => { setInputMode('camera'); startCamera(); setImageQualityError(null); }}
                             >
                                 <Camera size={16} className="inline mr-2" /> Live Capture
                             </button>
@@ -374,6 +490,22 @@ const App = () => {
                                         </button>
                                     )}
                                 </div>
+                            </div>
+                        )}
+
+                        {imageQualityError && (
+                            <div className="mt-6 bg-red-500/10 border border-red-500/20 p-6 rounded-2xl flex items-start gap-4 animate-fade-in">
+                                <AlertCircle className="text-red-400 shrink-0 mt-1" size={24} />
+                                <div className="flex-1">
+                                    <h3 className="text-red-400 font-bold text-lg mb-1">{imageQualityError.reason}</h3>
+                                    <p className="text-red-300/80">{imageQualityError.message}</p>
+                                </div>
+                                <button
+                                    onClick={() => setImageQualityError(null)}
+                                    className="text-red-400 hover:text-red-300 transition-colors"
+                                >
+                                    <X size={20} />
+                                </button>
                             </div>
                         )}
 

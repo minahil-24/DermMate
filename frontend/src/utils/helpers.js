@@ -26,6 +26,25 @@ export const formatTime = (timeString) => {
   return `${displayHour}:${minutes} ${ampm}`
 }
 
+/** Match backend slot normalization (avoid duplicate bookings for "9:00" vs "09:00"). */
+export const normalizeAppointmentSlot = (s) => {
+  if (s == null) return ''
+  const t = String(s).trim()
+  const m = t.match(/^(\d{1,2}):(\d{2})/)
+  if (!m) return t.replace(/\s+/g, '').toLowerCase()
+  const h = Math.min(23, Math.max(0, parseInt(m[1], 10) || 0))
+  const min = Math.min(59, Math.max(0, parseInt(m[2], 10) || 0))
+  return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`
+}
+
+export const isSlotBooked = (bookedList, dateStr, timeStr) => {
+  const slot = normalizeAppointmentSlot(timeStr)
+  if (!dateStr || !slot) return false
+  return (bookedList || []).some(
+    (b) => b.date === dateStr && normalizeAppointmentSlot(b.slot) === slot
+  )
+}
+
 export const getInitials = (name) => {
   return name
     .split(' ')

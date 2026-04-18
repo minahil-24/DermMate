@@ -19,6 +19,10 @@ router.post('/register', async (req, res) => {
   try {
     const { name, email, password, role, degree, specialty, location } = req.body;
 
+    if (!password || String(password).length < 8) {
+      return res.status(400).json({ message: 'Password must be at least 8 characters long' });
+    }
+
     const existingUser = await User.findOne({ email });
     if (existingUser) return res.status(400).json({ message: 'User already exists' });
 
@@ -165,6 +169,34 @@ router.patch('/profile', auth(), async (req, res) => {
     const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
+    if (user.role === 'patient') {
+      const name = String(req.body.name !== undefined ? req.body.name : user.name || '').trim();
+      const rawAge = req.body.age !== undefined ? req.body.age : user.age;
+      const gender = String(req.body.gender !== undefined ? req.body.gender : user.gender || '').trim();
+
+      if (!name) {
+        return res.status(400).json({ message: 'Name is required' });
+      }
+      if (!/^[A-Za-z\s'-]+$/.test(name)) {
+        return res.status(400).json({ message: 'Name can only contain letters, spaces, apostrophes, and hyphens' });
+      }
+
+      if (rawAge === '' || rawAge === null || rawAge === undefined) {
+        return res.status(400).json({ message: 'Age is required' });
+      }
+      const ageNum = Number(rawAge);
+      if (!Number.isInteger(ageNum) || ageNum <= 0 || ageNum > 120) {
+        return res.status(400).json({ message: 'Age must be a valid number between 1 and 120' });
+      }
+
+      if (!gender) {
+        return res.status(400).json({ message: 'Gender is required' });
+      }
+      if (!['male', 'female', 'other'].includes(gender)) {
+        return res.status(400).json({ message: 'Invalid gender value' });
+      }
+    }
+
     const allow = [
       'name', 'phoneNumber', 'location', 'gender', 'degree',
       'specialty', 'clinicName', 'city', 'bio', 'availability',
@@ -175,6 +207,31 @@ router.patch('/profile', auth(), async (req, res) => {
         user[key] = req.body[key];
       }
     });
+
+    if (user.role === 'dermatologist') {
+      if (req.body.clinicAddress !== undefined) {
+        user.clinicAddress = String(req.body.clinicAddress || '').slice(0, 500);
+      }
+      if (req.body.clinicLatitude !== undefined || req.body.clinicLongitude !== undefined) {
+        const clearCoords =
+          req.body.clinicLatitude === null ||
+          req.body.clinicLatitude === '' ||
+          req.body.clinicLongitude === null ||
+          req.body.clinicLongitude === '';
+        if (clearCoords) {
+          user.clinicLatitude = null;
+          user.clinicLongitude = null;
+          user.clinicLocation = undefined;
+        } else {
+          const la = parseFloat(req.body.clinicLatitude);
+          const lo = parseFloat(req.body.clinicLongitude);
+          if (!Number.isNaN(la) && !Number.isNaN(lo)) {
+            user.clinicLatitude = la;
+            user.clinicLongitude = lo;
+          }
+        }
+      }
+    }
 
     if (req.body.timeZone !== undefined) {
       user.timeZone = String(req.body.timeZone || '').trim().slice(0, 64);

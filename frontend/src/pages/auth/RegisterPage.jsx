@@ -49,6 +49,16 @@ const RegisterPage = () => {
       return;
     }
 
+    if (formData.password.length < 8) {
+      setError('Password must be at least 8 characters long');
+      addToast({
+        type: 'error',
+        title: 'Weak Password',
+        message: 'Password must be at least 8 characters long',
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {

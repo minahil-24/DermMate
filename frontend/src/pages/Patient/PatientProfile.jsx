@@ -29,6 +29,7 @@ const PatientProfile = () => {
     const [previewUrl, setPreviewUrl] = useState(null)
 
     const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000'
+    const namePattern = /^[A-Za-z\s'-]*$/
 
     useEffect(() => {
         if (user?.profilePhoto) {
@@ -45,14 +46,64 @@ const PatientProfile = () => {
     }
 
     const handleSave = async () => {
+        const trimmedName = String(formData.name || '').trim()
+        const ageValue = String(formData.age ?? '').trim()
+        const genderValue = String(formData.gender || '').trim()
+
+        if (!trimmedName) {
+            addToast({
+                type: 'error',
+                title: 'Invalid Name',
+                message: 'Name is required',
+            })
+            return
+        }
+
+        if (!/^[A-Za-z\s'-]+$/.test(trimmedName)) {
+            addToast({
+                type: 'error',
+                title: 'Invalid Name',
+                message: 'Name can only contain letters, spaces, apostrophes, and hyphens',
+            })
+            return
+        }
+
+        if (!ageValue) {
+            addToast({
+                type: 'error',
+                title: 'Invalid Age',
+                message: 'Age is required',
+            })
+            return
+        }
+
+        const ageNumber = Number(ageValue)
+        if (!Number.isInteger(ageNumber) || ageNumber <= 0 || ageNumber > 120) {
+            addToast({
+                type: 'error',
+                title: 'Invalid Age',
+                message: 'Age must be a valid number between 1 and 120',
+            })
+            return
+        }
+
+        if (!genderValue) {
+            addToast({
+                type: 'error',
+                title: 'Invalid Gender',
+                message: 'Gender is required',
+            })
+            return
+        }
+
         try {
             setSaving(true)
             const patchBody = {
-                name: formData.name,
+                name: trimmedName,
                 phoneNumber: formData.phoneNumber,
                 location: formData.location,
-                age: formData.age,
-                gender: formData.gender,
+                age: ageNumber,
+                gender: genderValue,
             }
 
             const response = await axios.patch(`${apiUrl}/api/auth/profile`, patchBody, {
@@ -165,7 +216,16 @@ const PatientProfile = () => {
                                 <User className="w-4 h-4 text-emerald-600" /> Full Name
                             </label>
                             {isEditing ? (
-                                <input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="w-full p-3 border rounded-xl" />
+                                <input
+                                    type="text"
+                                    value={formData.name}
+                                    onChange={(e) => {
+                                        const nextValue = e.target.value
+                                        if (!namePattern.test(nextValue)) return
+                                        setFormData({ ...formData, name: nextValue })
+                                    }}
+                                    className="w-full p-3 border rounded-xl"
+                                />
                             ) : <p className="text-gray-900 font-medium p-1">{formData.name}</p>}
                         </div>
 

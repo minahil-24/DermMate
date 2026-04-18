@@ -41,6 +41,18 @@ const userSchema = new mongoose.Schema({
   specialty: String,
   experience: Number,
   clinicName: String,
+  /** Precise clinic address from map / Nominatim (separate from general location text). */
+  clinicAddress: { type: String, default: '' },
+  clinicLatitude: { type: Number, default: null },
+  clinicLongitude: { type: Number, default: null },
+  /** GeoJSON Point for MongoDB geospatial queries [lng, lat] */
+  clinicLocation: {
+    type: {
+      type: String,
+      enum: ['Point'],
+    },
+    coordinates: { type: [Number], default: undefined },
+  },
   city: String,
   bio: String,
   consultationFee: Number,
@@ -81,5 +93,29 @@ const userSchema = new mongoose.Schema({
   resetPasswordToken: String,
   resetPasswordExpire: Date,
 }, { timestamps: true })
+
+userSchema.index({ clinicLocation: '2dsphere' }, { sparse: true })
+
+userSchema.pre('save', function syncClinicGeo() {
+  if (this.role !== 'dermatologist') {
+    return
+  }
+  const lat = this.clinicLatitude
+  const lng = this.clinicLongitude
+  if (
+    typeof lat === 'number' &&
+    typeof lng === 'number' &&
+    !Number.isNaN(lat) &&
+    !Number.isNaN(lng) &&
+    lat >= -90 &&
+    lat <= 90 &&
+    lng >= -180 &&
+    lng <= 180
+  ) {
+    this.clinicLocation = { type: 'Point', coordinates: [lng, lat] }
+  } else {
+    this.clinicLocation = undefined
+  }
+})
 
 module.exports = mongoose.model('User', userSchema)

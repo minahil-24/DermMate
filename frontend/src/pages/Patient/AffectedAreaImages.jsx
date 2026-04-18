@@ -33,7 +33,10 @@ const AffectedAreaImages = () => {
   const uploadOne = async (file) => {
     const fd = new FormData()
     fd.append('file', file)
-    const res = await axios.post(`${apiUrl}/api/cases/upload?type=affected`, fd, {
+    // Body field: multer puts this on req.body so the API always sees complaint type (query alone can be lost).
+    if (complaintType) fd.append('complaintType', complaintType)
+    const q = new URLSearchParams({ type: 'affected', complaintType: complaintType || '' })
+    const res = await axios.post(`${apiUrl}/api/cases/upload?${q.toString()}`, fd, {
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'multipart/form-data',
