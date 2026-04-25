@@ -83,7 +83,7 @@ router.post('/upload', auth(['patient']), upload.single('file'), async (req, res
         if (!hair.ok) {
           try {
             fs.unlinkSync(req.file.path)
-          } catch (_) {}
+          } catch (_) { }
           const raw = hair.raw || {}
           return res.status(400).json({
             message:
@@ -95,7 +95,7 @@ router.post('/upload', auth(['patient']), upload.single('file'), async (req, res
       } catch (e) {
         try {
           fs.unlinkSync(req.file.path)
-        } catch (_) {}
+        } catch (_) { }
         console.error('Hair YOLO upload:', e.message)
         return res.status(503).json({
           message:
@@ -162,7 +162,7 @@ router.post('/', auth(['patient']), async (req, res) => {
 
     let paymentStatus = 'pending_clinic'
     if (pm === 'online') {
-      paymentStatus = 'paid'
+      paymentStatus = 'pending_online'
     }
 
     const slotTaken = await isDoctorSlotTaken(
@@ -285,7 +285,7 @@ router.post('/resubmit/:caseId', auth(['patient']), async (req, res) => {
       // No second charge (e.g. prior online payment)
     } else {
       c.paymentMethod = pm
-      c.paymentStatus = pm === 'online' ? 'paid' : 'pending_clinic'
+      c.paymentStatus = pm === 'online' ? 'pending_online' : 'pending_clinic'
     }
 
     c.caseStatus = 'submitted'
@@ -542,9 +542,40 @@ router.post('/:caseId/followups', auth(['dermatologist']), async (req, res) => {
   }
 })
 
+router.patch('/:caseId/progress', auth(['dermatologist']), async (req, res) => {
+  try {
+    const { progress } = req.body
+    if (progress === undefined) return res.status(400).json({ message: 'Progress is required' })
+
+    const c = await MedicalCase.findById(req.params.caseId)
+    if (!c) return res.status(404).json({ message: 'Case not found' })
+    if (String(c.doctor) !== String(req.user.id)) {
+      return res.status(403).json({ message: 'Not authorized for this case' })
+    }
+
+    c.progress = Math.min(100, Math.max(0, parseInt(progress, 10) || 0))
+    await c.save()
+
+    try {
+      await notifyUser(c.patient, {
+        title: 'Treatment Progress Updated',
+        message: `Your dermatologist updated your treatment progress to ${c.progress}%.`,
+        link: '/patient/dashboard',
+        type: 'treatment_progress',
+      })
+    } catch (e) {
+      console.error('notify progress update:', e)
+    }
+
+    res.json({ message: 'Progress updated', progress: c.progress })
+  } catch (error) {
+    res.status(500).json({ message: error.message })
+  }
+})
+
 router.put('/:caseId/treatment-plan', auth(['dermatologist']), async (req, res) => {
   try {
-    const { medications = [], lifestyle = [], notes = '' } = req.body || {}
+    const { medications = [], lifestyle = [], notes = '', progress } = req.body || {}
 
     const c = await MedicalCase.findById(req.params.caseId)
     if (!c) return res.status(404).json({ message: 'Case not found' })
@@ -554,6 +585,10 @@ router.put('/:caseId/treatment-plan', auth(['dermatologist']), async (req, res) 
 
     const meds = Array.isArray(medications) ? medications : []
     const life = Array.isArray(lifestyle) ? lifestyle : []
+
+    if (progress !== undefined) {
+      c.progress = Math.min(100, Math.max(0, parseInt(progress, 10) || 0))
+    }
 
     c.treatmentPlan = {
       medications: meds

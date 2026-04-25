@@ -1,4 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom'
+import { TrendingUp } from "lucide-react";
 import { motion } from 'framer-motion'
 import {
   LayoutDashboard,
@@ -77,7 +78,7 @@ const Sidebar = () => {
     { to: '/admin/verification', icon: Stethoscope, label: 'Verification' },
     { to: '/admin/ai-models', icon: Settings, label: 'AI Models' },
     { to: '/admin/reports', icon: FileText, label: 'Reports & Analytics' },
-    { to: '/admin/alerts', icon: Bell, label: 'Notifications' },
+
     { to: '/admin/notifications', icon: Send, label: 'Broadcast' },
     { to: '/admin/system-revenue', icon: Wallet, label: 'Revenue' },
 

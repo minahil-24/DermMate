@@ -86,6 +86,7 @@ const userSchema = new mongoose.Schema({
   // Billing and Fees
   feePaymentDeadline: { type: Date, default: null },
   blockedDueToUnpaidFee: { type: Boolean, default: false },
+  systemFeePaid: { type: Number, default: 0 },
 
   // Auth Tokens
   verificationToken: String,

@@ -7,11 +7,13 @@ import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
 import Breadcrumbs from '../../components/common/Breadcrumbs'
 import { useAuthStore } from '../../store/authStore'
-import { formatDate } from '../../utils/helpers'
+import { useToastStore } from '../../store/toastStore'
+import { formatDate, generateChallanPDF } from '../../utils/helpers'
 
 const PatientCases = () => {
   const navigate = useNavigate()
   const { token } = useAuthStore()
+  const addToast = useToastStore((s) => s.addToast)
   const [cases, setCases] = useState([])
   const [loading, setLoading] = useState(true)
   const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000'
@@ -48,6 +50,36 @@ const PatientCases = () => {
       return { text: 'Draft', cls: 'bg-amber-50 text-amber-800 border border-amber-200' }
     }
     return { text: 'Submitted', cls: 'bg-emerald-50 text-emerald-600' }
+  }
+
+  const needsPayment = (c) =>
+    !c.isCancelledByPatient &&
+    c.paymentStatus !== 'paid' &&
+    c.doctorReviewStatus === 'accepted';
+
+  const handlePay = async (c) => {
+    try {
+      if (c.paymentMethod === 'online') {
+        const res = await axios.post(`${apiUrl}/api/billing/stripe/create-patient-session`, { caseId: c._id }, { headers: { Authorization: `Bearer ${token}` } });
+        if (res.data.url) window.location.href = res.data.url;
+      } else {
+        generateChallanPDF({ 
+          patient: c.patient, 
+          doctor: c.doctor, 
+          paymentMethod: c.paymentMethod, 
+          fee: c.consultationFee, 
+          date: c.appointmentDate, 
+          timeSlot: c.appointmentTimeSlot 
+        });
+      }
+    } catch (e) {
+      console.error(e)
+      addToast({
+        type: 'error',
+        title: 'Payment Error',
+        message: e.response?.data?.message || e.message || 'Payment initiation failed',
+      });
+    }
   }
 
   return (
@@ -128,8 +160,20 @@ const PatientCases = () => {
 
                   <div className="space-y-4 mb-8">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-emerald-50 flex items-center justify-center">
-                        <User size={14} className="text-emerald-600" />
+                      <div className="w-10 h-10 rounded-xl overflow-hidden bg-emerald-50 border border-emerald-100 shrink-0 shadow-sm">
+                        {caseItem.doctor?.profilePhoto ? (
+                          <img
+                            src={`${apiUrl}/${caseItem.doctor.profilePhoto.replace(/\\/g, '/')}`}
+                            alt={caseItem.doctor.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <img
+                            src={caseItem.doctor?.gender === 'female' ? '/imgs/default-female.png' : '/imgs/default-male.png'}
+                            alt="Doctor"
+                            className="w-full h-full object-cover"
+                          />
+                        )}
                       </div>
                       <div>
                         <p className="text-[10px] uppercase font-bold text-slate-400 tracking-tight">
@@ -174,6 +218,14 @@ const PatientCases = () => {
                     >
                       <FileEdit className="w-4 h-4" />
                       Send to another doctor
+                    </Button>
+                  )}
+                  {needsPayment(caseItem) && (
+                    <Button
+                      className="w-full mt-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold gap-2"
+                      onClick={() => handlePay(caseItem)}
+                    >
+                      {caseItem.paymentMethod === 'online' ? 'Pay now (Stripe)' : 'Download Challan'}
                     </Button>
                   )}
                 </Card>

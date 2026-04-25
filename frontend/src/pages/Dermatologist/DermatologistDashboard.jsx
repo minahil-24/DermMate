@@ -125,21 +125,34 @@ const DermatologistDashboard = () => {
               {todayAppointments.slice(0, 10).map((c) => (
                 <div
                   key={c._id}
-                  className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 bg-gray-50 rounded-lg"
+                  className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 bg-gray-50 rounded-xl hover:bg-emerald-50/50 transition-colors border border-transparent hover:border-emerald-100"
                 >
-                  <div>
-                    <p className="font-medium text-gray-900">{c.patient?.name || 'Patient'}</p>
-                    <p className="text-sm text-gray-600">
-                      {c.patient?.email || '—'} · {c.complaintType || '—'}
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      {c.appointmentDate ? formatDate(c.appointmentDate) : '—'}{' '}
-                      {c.appointmentTimeSlot ? `at ${formatTime(c.appointmentTimeSlot)}` : ''}
-                    </p>
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl overflow-hidden bg-white border border-slate-200 shrink-0 shadow-sm">
+                      {c.patient?.profilePhoto ? (
+                        <img
+                          src={`${apiUrl}/${c.patient.profilePhoto.replace(/\\/g, '/')}`}
+                          alt={c.patient.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <img
+                          src={c.patient?.gender === 'female' ? '/imgs/default-female.png' : '/imgs/default-male.png'}
+                          alt="Patient"
+                          className="w-full h-full object-cover"
+                        />
+                      )}
+                    </div>
+                    <div>
+                      <p className="font-bold text-gray-900 text-base">{c.patient?.name || 'Patient'}</p>
+                      <p className="text-xs text-gray-500 font-medium">
+                        {c.complaintType?.charAt(0).toUpperCase() + c.complaintType?.slice(1)} · {c.appointmentTimeSlot ? formatTime(c.appointmentTimeSlot) : '—'}
+                      </p>
+                    </div>
                   </div>
                   <div className="flex items-center gap-2 justify-end">
-                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
-                      accepted
+                    <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-emerald-100 text-emerald-700 border border-emerald-200">
+                      confirmed
                     </span>
                   </div>
                 </div>

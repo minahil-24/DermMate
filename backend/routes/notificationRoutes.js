@@ -39,4 +39,31 @@ router.post('/read-all', auth(), async (req, res) => {
   }
 })
 
+router.post('/broadcast', auth(['admin']), async (req, res) => {
+  try {
+    const { title, message, target } = req.body
+    if (!title || !message) return res.status(400).json({ message: 'Title and message required' })
+
+    const User = require('../models/User')
+    let query = {}
+    if (target === 'patients') query = { role: 'patient' }
+    else if (target === 'dermatologists') query = { role: 'dermatologist' }
+    else if (target === 'all') query = { role: { $in: ['patient', 'dermatologist'] } }
+    else return res.status(400).json({ message: 'Invalid target' })
+
+    const users = await User.find(query).select('_id')
+    const notifications = users.map(u => ({
+      recipient: u._id,
+      title,
+      message,
+      type: 'broadcast'
+    }))
+
+    await Notification.insertMany(notifications)
+    res.json({ message: `Broadcast sent to ${users.length} users` })
+  } catch (error) {
+    res.status(500).json({ message: error.message })
+  }
+})
+
 module.exports = router

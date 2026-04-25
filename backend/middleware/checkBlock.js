@@ -16,7 +16,7 @@ const checkBlock = async (req, res, next) => {
 
         if (isBlocked) {
           // Allow billing requests to pass through so they can unblock
-          if (req.originalUrl.includes('/api/billing/pay') || req.originalUrl.includes('/api/billing/dermatologist')) {
+          if (req.originalUrl.includes('/api/billing')) {
               return next();
           }
           return res.status(403).json({ message: "Blocked due to unpaid fees. Please pay your pending charges to continue." });

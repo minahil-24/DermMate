@@ -122,8 +122,20 @@ const DermatologistVerification = () => {
                   <Card className="hover:shadow-md transition-shadow border-none ring-1 ring-slate-100 p-6">
                     <div className="flex flex-col gap-6">
                       <div className="flex items-start gap-4 text-sm">
-                        <div className="w-14 h-14 bg-emerald-100 rounded-2xl flex items-center justify-center shrink-0 shadow-sm shadow-emerald-200">
-                          <FileText className="w-7 h-7 text-emerald-600" />
+                        <div className="w-16 h-16 rounded-2xl overflow-hidden bg-emerald-50 border border-emerald-100 shrink-0 shadow-md">
+                          {doc.profilePhoto ? (
+                            <img
+                              src={`${apiUrl}/${doc.profilePhoto.replace(/\\/g, '/')}`}
+                              alt={doc.name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <img
+                              src={doc.gender === 'female' ? '/imgs/default-female.png' : '/imgs/default-male.png'}
+                              alt="Doctor"
+                              className="w-full h-full object-cover"
+                            />
+                          )}
                         </div>
                         <div className="space-y-1 flex-1 min-w-0">
                           <h3 className="font-black text-xl text-gray-900 leading-tight">{doc.name}</h3>

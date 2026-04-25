@@ -57,14 +57,16 @@ const SystemRevenue = () => {
 
     // Calculations
     const totalPayments = doctors.reduce((s, p) => s + p.totalCharges, 0)
-    const systemRevenue = doctors.reduce((s, p) => s + p.systemCut, 0)
-    const dermatologistRevenue = totalPayments - systemRevenue
+    const systemRevenueTotal = doctors.reduce((s, p) => s + p.systemCut, 0)
+    const systemRevenuePaid = doctors.reduce((s, p) => s + (p.systemFeePaid || 0), 0)
+    const systemRevenuePending = doctors.reduce((s, p) => s + (p.systemFeePending || 0), 0)
+    const dermatologistRevenue = totalPayments - systemRevenueTotal
 
     const stats = [
         { label: 'Total Volume', value: `PKR ${totalPayments.toLocaleString()}`, icon: Wallet, gradient: 'from-emerald-500 to-green-400' },
-        { label: 'System Cut (5%)', value: `PKR ${systemRevenue.toLocaleString()}`, icon: Percent, gradient: 'from-blue-500 to-cyan-400' },
+        { label: 'Pending Cut (5%)', value: `PKR ${systemRevenuePending.toLocaleString()}`, icon: Percent, gradient: 'from-blue-500 to-cyan-400' },
+        { label: 'Collected Fee', value: `PKR ${systemRevenuePaid.toLocaleString()}`, icon: Wallet, gradient: 'from-purple-500 to-fuchsia-400' },
         { label: 'Dermatologist Earnings', value: `PKR ${dermatologistRevenue.toLocaleString()}`, icon: Users, gradient: 'from-teal-500 to-emerald-400' },
-        { label: 'Active Dermatologists', value: doctors.length, icon: TrendingUp, gradient: 'from-yellow-400 to-orange-400' },
     ]
 
     return (
@@ -122,7 +124,8 @@ const SystemRevenue = () => {
                                     <tr>
                                         <th className="px-5 py-4 font-semibold text-gray-600">Dermatologist</th>
                                         <th className="px-5 py-4 font-semibold text-gray-600">Total Cases</th>
-                                        <th className="px-5 py-4 font-semibold text-gray-600">Pending System Fee</th>
+                                        <th className="px-5 py-4 font-semibold text-gray-600">Pending Fee</th>
+                                        <th className="px-5 py-4 font-semibold text-gray-600">Paid Fee</th>
                                         <th className="px-5 py-4 font-semibold text-gray-600">Status</th>
                                         <th className="px-5 py-4 font-semibold text-gray-600 text-right">Payment Deadline</th>
                                     </tr>
@@ -130,7 +133,7 @@ const SystemRevenue = () => {
                                 <tbody className="divide-y bg-white">
                                     {doctors.length === 0 ? (
                                         <tr>
-                                            <td colSpan="5" className="text-center py-8 text-gray-500 italic">No dermatologists found.</td>
+                                            <td colSpan="6" className="text-center py-8 text-gray-500 italic">No dermatologists found.</td>
                                         </tr>
                                     ) : (
                                         doctors.map((p, index) => (
@@ -142,20 +145,46 @@ const SystemRevenue = () => {
                                                 className="hover:bg-blue-50/40 transition"
                                             >
                                                 <td className="px-5 py-4">
-                                                    <div className="font-semibold text-gray-800">{p.name}</div>
-                                                    <div className="text-xs text-gray-500">{p.email}</div>
+                                                    <div className="flex items-center gap-3">
+                                                      <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-100 border border-gray-200 shrink-0">
+                                                        {p.profilePhoto ? (
+                                                          <img
+                                                            src={`${apiUrl}/${p.profilePhoto.replace(/\\/g, '/')}`}
+                                                            alt={p.name}
+                                                            className="w-full h-full object-cover"
+                                                          />
+                                                        ) : (
+                                                          <img
+                                                            src={p.gender === 'female' ? '/imgs/default-female.png' : '/imgs/default-male.png'}
+                                                            alt="Doctor"
+                                                            className="w-full h-full object-cover"
+                                                          />
+                                                        )}
+                                                      </div>
+                                                      <div>
+                                                        <div className="font-semibold text-gray-800">{p.name}</div>
+                                                        <div className="text-xs text-gray-500">{p.email}</div>
+                                                      </div>
+                                                    </div>
                                                 </td>
                                                 <td className="px-5 py-4 font-medium text-gray-700">{p.totalCases}</td>
                                                 <td className="px-5 py-4">
-                                                    <span className="px-3 py-1 rounded-full bg-blue-100 text-blue-700 font-semibold">
-                                                        PKR {p.systemCut.toLocaleString()}
+                                                    <span className="px-3 py-1 rounded-full bg-amber-100 text-amber-700 font-semibold">
+                                                        PKR {p.systemFeePending?.toLocaleString() || 0}
+                                                    </span>
+                                                </td>
+                                                <td className="px-5 py-4">
+                                                    <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold">
+                                                        PKR {p.systemFeePaid?.toLocaleString() || 0}
                                                     </span>
                                                 </td>
                                                 <td className="px-5 py-4">
                                                     {p.status === 'Blocked' ? (
                                                         <span className="text-xs font-bold text-red-700 bg-red-100 px-2 py-1 rounded-full">Blocked (Unpaid)</span>
+                                                    ) : p.systemFeePending === 0 ? (
+                                                        <span className="text-xs font-bold text-slate-700 bg-slate-100 px-2 py-1 rounded-full">Closed / Cleared</span>
                                                     ) : (
-                                                        <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-1 rounded-full">Active</span>
+                                                        <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-1 rounded-full">Pending</span>
                                                     )}
                                                 </td>
                                                 <td className="px-5 py-4 text-right">

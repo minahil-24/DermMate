@@ -16,7 +16,7 @@ import axios from 'axios'
 import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
 import Breadcrumbs from '../../components/common/Breadcrumbs'
-import { formatDate, formatTime } from '../../utils/helpers'
+import { formatDate, formatTime, generateChallanPDF } from '../../utils/helpers'
 import EmptyState from '../../components/common/EmptyState'
 import { useAuthStore } from '../../store/authStore'
 import { useToastStore } from '../../store/toastStore'
@@ -63,7 +63,7 @@ const PatientAppointments = () => {
   const needsPayment = (c) =>
     !c.isCancelledByPatient &&
     c.paymentStatus !== 'paid' &&
-    (c.paymentMethod === 'in_clinic' || c.paymentMethod === 'cod' || c.paymentMethod === 'cash')
+    c.doctorReviewStatus === 'accepted'
 
   const canCancel = (c) =>
     !c.isCancelledByPatient && (c.doctorReviewStatus === 'pending' || !c.doctorReviewStatus)
@@ -71,13 +71,20 @@ const PatientAppointments = () => {
   const handlePay = async (c) => {
     try {
       setActionId(c._id)
-      await axios.patch(
-        `${apiUrl}/api/cases/${c._id}/mark-paid`,
-        {},
-        { headers: { Authorization: `Bearer ${token}` } }
-      )
-      addToast({ type: 'success', title: 'Payment recorded', message: 'Your payment status is updated.' })
-      await load()
+      if (c.paymentMethod === 'online') {
+        const res = await axios.post(`${apiUrl}/api/billing/stripe/create-patient-session`, { caseId: c._id }, { headers: { Authorization: `Bearer ${token}` } });
+        if (res.data.url) window.location.href = res.data.url;
+      } else {
+        generateChallanPDF({ 
+          patient: c.patient, 
+          doctor: c.doctor, 
+          paymentMethod: c.paymentMethod, 
+          fee: c.consultationFee, 
+          date: c.appointmentDate, 
+          timeSlot: c.appointmentTimeSlot 
+        });
+        addToast({ type: 'success', title: 'Challan Downloaded', message: 'Bring this challan to the clinic.' });
+      }
     } catch (e) {
       addToast({
         type: 'error',
@@ -194,7 +201,7 @@ const PatientAppointments = () => {
                               {c.paymentStatus === 'paid'
                                 ? 'Paid'
                                 : c.paymentMethod === 'online'
-                                  ? 'Paid (online)'
+                                  ? 'Pending (online)'
                                   : 'Pending (pay in clinic)'}
                             </span>
                           </div>
@@ -232,7 +239,7 @@ const PatientAppointments = () => {
                             className="bg-blue-600 hover:bg-blue-700 text-white"
                             onClick={() => handlePay(c)}
                           >
-                            Pay now
+                            {c.paymentMethod === 'online' ? 'Pay now (Stripe)' : 'Download Challan'}
                           </Button>
                         )}
                         <Button

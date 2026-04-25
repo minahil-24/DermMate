@@ -104,6 +104,9 @@ const caseSchema = new mongoose.Schema(
       updatedAt: { type: Date, default: null },
       updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     },
+
+    /** Treatment progress percentage (0-100) */
+    progress: { type: Number, default: 0, min: 0, max: 100 },
   },
   { timestamps: true }
 )

@@ -5,6 +5,8 @@ import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
 import Breadcrumbs from '../../components/common/Breadcrumbs'
 import { useToastStore } from '../../store/toastStore'
+import { useAuthStore } from '../../store/authStore'
+import axios from 'axios'
 
 const BroadcastNotifications = () => {
   const addToast = useToastStore((state) => state.addToast)
@@ -15,19 +17,37 @@ const BroadcastNotifications = () => {
     target: 'all',
   })
 
-  const handleSend = () => {
+  const { token } = useAuthStore()
+  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000'
+  const [sending, setSending] = useState(false)
+
+  const handleSend = async () => {
     if (!formData.title || !formData.message) return
+    setSending(true)
+    try {
+      await axios.post(`${apiUrl}/api/notifications/broadcast`, formData, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
 
-    addToast({
-      type: 'success',
-      title: 'Notification Sent',
-      message: `Broadcast sent to ${formData.target === 'all'
-          ? 'all users'
-          : formData.target
-        }`,
-    })
+      addToast({
+        type: 'success',
+        title: 'Notification Sent',
+        message: `Broadcast successfully sent to ${formData.target === 'all'
+            ? 'all users'
+            : formData.target
+          }`,
+      })
 
-    setFormData({ title: '', message: '', target: 'all' })
+      setFormData({ title: '', message: '', target: 'all' })
+    } catch (error) {
+      addToast({
+        type: 'error',
+        title: 'Broadcast Failed',
+        message: error.response?.data?.message || 'Something went wrong',
+      })
+    } finally {
+      setSending(false)
+    }
   }
 
   return (
@@ -112,11 +132,20 @@ const BroadcastNotifications = () => {
 
               <Button
                 onClick={handleSend}
-                disabled={!formData.title || !formData.message}
+                disabled={!formData.title || !formData.message || sending}
                 className="w-full py-3 text-base"
               >
-                <Send className="w-4 h-4 mr-2" />
-                Send Notification
+                {sending ? (
+                  <span className="flex items-center gap-2">
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                    Sending...
+                  </span>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4 mr-2" />
+                    Send Notification
+                  </>
+                )}
               </Button>
             </div>
           </Card>

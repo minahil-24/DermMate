@@ -18,6 +18,7 @@ const PatientDashboard = () => {
   const [loading, setLoading] = useState(true)
   const [cases, setCases] = useState([])
   const [notifications, setNotifications] = useState([])
+  const [selectedProgressCaseId, setSelectedProgressCaseId] = useState('')
 
   useEffect(() => {
     const load = async () => {
@@ -31,6 +32,12 @@ const PatientDashboard = () => {
         const list = casesRes.data || []
         setCases(list)
         setNotifications(notifRes.data || [])
+
+        const active = list.filter((c) => !c.isCancelledByPatient && c.doctorReviewStatus === 'accepted')
+        if (active.length > 0) {
+          setSelectedProgressCaseId(active[0]._id)
+        }
+
         if (list.some((c) => c.caseStatus === 'draft')) {
           addToast({
             type: 'info',
@@ -63,7 +70,7 @@ const PatientDashboard = () => {
       .then((r) => {
         if (r.data?.user) updateUser(r.data.user)
       })
-      .catch(() => {})
+      .catch(() => { })
   }, [token, user?.role, user?.timeZone, apiUrl, updateUser])
 
   const unreadNotifications = useMemo(
@@ -81,11 +88,20 @@ const PatientDashboard = () => {
   }, [cases])
 
   const activeCases = useMemo(() => {
-    return (cases || []).filter((c) => !c.isCancelledByPatient && c.doctorReviewStatus !== 'rejected')
+    return (cases || []).filter((c) => !c.isCancelledByPatient && c.doctorReviewStatus === 'accepted')
   }, [cases])
 
-  // Treatment progress: backend currently has no treatment fields/models; show 0% unless you add fields.
-  const treatmentProgressPct = 0
+  const treatmentProgressPct = useMemo(() => {
+    if (!selectedProgressCaseId) return 0
+    const c = activeCases.find((x) => x._id === selectedProgressCaseId)
+    return c?.progress || 0
+  }, [activeCases, selectedProgressCaseId])
+
+  const selectedCaseName = useMemo(() => {
+    const c = activeCases.find((x) => x._id === selectedProgressCaseId)
+    if (!c) return 'No active treatment'
+    return `${c.doctor?.name || 'Dr.'} (${c.complaintType})`
+  }, [activeCases, selectedProgressCaseId])
 
   const stats = [
     {
@@ -121,7 +137,7 @@ const PatientDashboard = () => {
   return (
     <div>
       <Breadcrumbs items={[{ label: 'Dashboard' }]} />
-      
+
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Dashboard</h1>
         <p className="text-gray-600">Welcome back! Here's your overview.</p>
@@ -131,6 +147,8 @@ const PatientDashboard = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         {stats.map((stat, index) => {
           const Icon = stat.icon
+          const isProgress = stat.label === 'Treatment Progress'
+
           return (
             <motion.div
               key={stat.label}
@@ -138,16 +156,53 @@ const PatientDashboard = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
             >
-              <Card hover>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">{stat.label}</p>
-                    <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
-                    <p className="text-xs text-emerald-600 mt-1">{stat.change}</p>
+              <Card hover className="h-full">
+                <div className="flex flex-col h-full justify-between gap-4">
+                  <div className="flex items-center justify-between">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm text-gray-600 mb-1">{stat.label}</p>
+                      <div className="flex flex-col">
+                        <p className={`font-bold text-gray-900 ${isProgress && treatmentProgressPct === 0 ? 'text-sm' : 'text-2xl'}`}>
+                          {isProgress && treatmentProgressPct === 0 ? 'Not announced yet' : stat.value}
+                        </p>
+                        
+                        {isProgress && treatmentProgressPct > 0 && (
+                          <div className="w-full bg-slate-100 h-1.5 rounded-full mt-2 overflow-hidden border border-slate-200/50">
+                            <motion.div 
+                              initial={{ width: 0 }}
+                              animate={{ width: `${treatmentProgressPct}%` }}
+                              className="h-full bg-gradient-to-r from-emerald-400 to-teal-500"
+                            />
+                          </div>
+                        )}
+
+                        {isProgress && activeCases.length > 1 && (
+                          <select
+                            value={selectedProgressCaseId}
+                            onChange={(e) => setSelectedProgressCaseId(e.target.value)}
+                            className="mt-3 text-[10px] border border-slate-200 rounded-lg bg-white/80 p-1.5 outline-none focus:ring-1 focus:ring-emerald-500 w-full font-bold text-slate-700"
+                          >
+                            {activeCases.map(c => (
+                              <option key={c._id} value={c._id}>
+                                {c.doctor?.name || 'Doctor'} - {c.complaintType}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                        {isProgress && activeCases.length === 1 && (
+                          <p className="text-[10px] text-gray-400 mt-2 font-bold uppercase tracking-widest truncate">
+                            {selectedCaseName}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <div className={`${stat.color} p-3 rounded-lg shrink-0 ml-2`}>
+                      <Icon className="w-6 h-6 text-white" />
+                    </div>
                   </div>
-                  <div className={`${stat.color} p-3 rounded-lg`}>
-                    <Icon className="w-6 h-6 text-white" />
-                  </div>
+                  <p className="text-xs text-emerald-600 font-medium">
+                    {isProgress ? (activeCases.length ? 'Track your recovery' : 'No active treatments') : stat.change}
+                  </p>
                 </div>
               </Card>
             </motion.div>
@@ -160,106 +215,104 @@ const PatientDashboard = () => {
           <Loader2 className="w-10 h-10 animate-spin text-emerald-500" />
         </div>
       ) : (
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Upcoming Appointments */}
-        <Card className="lg:col-span-1">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-gray-900">Upcoming Appointments</h2>
-            <button onClick={() => navigate('/patient/appointments')} className="text-sm text-emerald-600 hover:text-emerald-700">
-              View all
-            </button>
-          </div>
-          <div className="space-y-3">
-            {upcomingAppointments.slice(0, 3).map((apt) => (
-              <div
-                key={apt._id}
-                className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-              >
-                <div>
-                  <p className="font-medium text-gray-900">{apt.doctor?.name || 'Dermatologist'}</p>
-                  <p className="text-sm text-gray-600">
-                    {formatDate(apt.appointmentDate)} at {apt.appointmentTimeSlot || '—'}
-                  </p>
-                </div>
-                <span
-                  className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    apt.doctorReviewStatus === 'accepted'
-                      ? 'bg-emerald-100 text-emerald-700'
-                      : apt.doctorReviewStatus === 'rejected'
-                        ? 'bg-red-100 text-red-700'
-                        : 'bg-yellow-100 text-yellow-700'
-                  }`}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Upcoming Appointments */}
+          <Card className="lg:col-span-1">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-gray-900">Upcoming Appointments</h2>
+              <button onClick={() => navigate('/patient/appointments')} className="text-sm text-emerald-600 hover:text-emerald-700">
+                View all
+              </button>
+            </div>
+            <div className="space-y-3">
+              {upcomingAppointments.slice(0, 3).map((apt) => (
+                <div
+                  key={apt._id}
+                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
                 >
-                  {apt.isCancelledByPatient ? 'cancelled' : (apt.doctorReviewStatus || 'pending')}
-                </span>
-              </div>
-            ))}
-            {upcomingAppointments.length === 0 && (
-              <p className="text-center text-gray-500 py-4">No upcoming appointments</p>
-            )}
-          </div>
-        </Card>
-
-        {/* Active Cases */}
-        <Card className="lg:col-span-1">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-gray-900">Active Cases</h2>
-            <button onClick={() => navigate('/patient/cases')} className="text-sm text-emerald-600 hover:text-emerald-700">
-              View all
-            </button>
-          </div>
-          <div className="space-y-3">
-            {activeCases.slice(0, 3).map((caseItem) => (
-              <div
-                key={caseItem._id}
-                className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-              >
-                <div>
-                  <p className="font-medium text-gray-900 capitalize">
-                    {caseItem.complaintType}
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    Submitted {formatDate(caseItem.createdAt)}
-                  </p>
+                  <div>
+                    <p className="font-medium text-gray-900">{apt.doctor?.name || 'Dermatologist'}</p>
+                    <p className="text-sm text-gray-600">
+                      {formatDate(apt.appointmentDate)} at {apt.appointmentTimeSlot || '—'}
+                    </p>
+                  </div>
+                  <span
+                    className={`px-2 py-1 rounded-full text-xs font-medium ${apt.doctorReviewStatus === 'accepted'
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : apt.doctorReviewStatus === 'rejected'
+                          ? 'bg-red-100 text-red-700'
+                          : 'bg-yellow-100 text-yellow-700'
+                      }`}
+                  >
+                    {apt.isCancelledByPatient ? 'cancelled' : (apt.doctorReviewStatus || 'pending')}
+                  </span>
                 </div>
-                <CheckCircle className="w-5 h-5 text-emerald-600" />
-              </div>
-            ))}
-            {activeCases.length === 0 && (
-              <p className="text-center text-gray-500 py-4">No active cases</p>
-            )}
-          </div>
-        </Card>
+              ))}
+              {upcomingAppointments.length === 0 && (
+                <p className="text-center text-gray-500 py-4">No upcoming appointments</p>
+              )}
+            </div>
+          </Card>
 
-        {/* Recent Notifications */}
-        <Card className="lg:col-span-1">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-gray-900">Recent Notifications</h2>
-            <button
-              onClick={() => navigate('/patient/notifications')}
-              className="text-sm text-emerald-600 hover:text-emerald-700"
-            >
-              View all
-            </button>
-          </div>
-          <div className="space-y-3">
-            {notifications.slice(0, 3).map((n) => (
-              <div
-                key={n._id}
-                className={`p-3 rounded-lg border transition-colors ${
-                  n.read ? 'bg-white border-gray-200' : 'bg-emerald-50 border-emerald-200'
-                }`}
+          {/* Active Cases */}
+          <Card className="lg:col-span-1">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-gray-900">Active Cases</h2>
+              <button onClick={() => navigate('/patient/cases')} className="text-sm text-emerald-600 hover:text-emerald-700">
+                View all
+              </button>
+            </div>
+            <div className="space-y-3">
+              {activeCases.slice(0, 3).map((caseItem) => (
+                <div
+                  key={caseItem._id}
+                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                >
+                  <div>
+                    <p className="font-medium text-gray-900 capitalize">
+                      {caseItem.complaintType}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      Submitted {formatDate(caseItem.createdAt)}
+                    </p>
+                  </div>
+                  <CheckCircle className="w-5 h-5 text-emerald-600" />
+                </div>
+              ))}
+              {activeCases.length === 0 && (
+                <p className="text-center text-gray-500 py-4">No active cases</p>
+              )}
+            </div>
+          </Card>
+
+          {/* Recent Notifications */}
+          <Card className="lg:col-span-1">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-gray-900">Recent Notifications</h2>
+              <button
+                onClick={() => navigate('/patient/notifications')}
+                className="text-sm text-emerald-600 hover:text-emerald-700"
               >
-                <p className="font-medium text-gray-900">{n.title}</p>
-                <p className="text-sm text-gray-600 line-clamp-2">{n.message}</p>
-              </div>
-            ))}
-            {notifications.length === 0 && (
-              <p className="text-center text-gray-500 py-4">No notifications</p>
-            )}
-          </div>
-        </Card>
-      </div>
+                View all
+              </button>
+            </div>
+            <div className="space-y-3">
+              {notifications.slice(0, 3).map((n) => (
+                <div
+                  key={n._id}
+                  className={`p-3 rounded-lg border transition-colors ${n.read ? 'bg-white border-gray-200' : 'bg-emerald-50 border-emerald-200'
+                    }`}
+                >
+                  <p className="font-medium text-gray-900">{n.title}</p>
+                  <p className="text-sm text-gray-600 line-clamp-2">{n.message}</p>
+                </div>
+              ))}
+              {notifications.length === 0 && (
+                <p className="text-center text-gray-500 py-4">No notifications</p>
+              )}
+            </div>
+          </Card>
+        </div>
       )}
     </div>
   )

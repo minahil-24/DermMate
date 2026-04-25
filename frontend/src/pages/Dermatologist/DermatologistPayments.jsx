@@ -39,11 +39,12 @@ const DermatologistPayments = () => {
     const handlePay = async () => {
         try {
             setPaying(true)
-            await axios.post(`${apiUrl}/api/billing/pay`, {}, {
+            const res = await axios.post(`${apiUrl}/api/billing/stripe/create-dermatologist-session`, {}, {
                 headers: { Authorization: `Bearer ${token}` }
             })
-            addToast({ type: 'success', title: 'Payment Successful', message: 'System fees have been paid successfully.' })
-            await fetchBilling()
+            if (res.data.url) {
+                window.location.href = res.data.url;
+            }
         } catch (error) {
             addToast({ type: 'error', title: 'Payment Failed', message: error.response?.data?.message || 'Error processing payment' })
         } finally {
@@ -59,7 +60,7 @@ const DermatologistPayments = () => {
         )
     }
 
-    const { totalCharges = 0, systemFeePending = 0, payments = [], feePaymentDeadline, blockedDueToUnpaidFee } = billingData || {}
+    const { totalCharges = 0, systemFeePending = 0, systemFeePaid = 0, payments = [], feePaymentDeadline, blockedDueToUnpaidFee } = billingData || {}
     const isOverdue = feePaymentDeadline && new Date() > new Date(feePaymentDeadline)
 
     return (
@@ -102,10 +103,14 @@ const DermatologistPayments = () => {
                 <Card className="bg-gradient-to-br from-red-500 to-rose-600 text-white border-0">
                     <div className="flex justify-between items-start mb-4">
                         <div className="bg-white/20 p-3 rounded-xl"><ArrowRight className="w-6 h-6 text-white" /></div>
+                        <div className="text-right">
+                            <p className="text-red-100 text-xs font-semibold uppercase tracking-wider mb-1">Total Paid</p>
+                            <p className="text-lg font-bold">PKR {systemFeePaid.toLocaleString()}</p>
+                        </div>
                     </div>
                     <p className="text-red-100 text-sm font-medium mb-1">Total Pending System Fee (5%)</p>
                     <h3 className="text-3xl font-bold">PKR {systemFeePending.toLocaleString()}</h3>
-                    {systemFeePending > 0 && (
+                    {systemFeePending > 0 ? (
                         <Button 
                             onClick={handlePay} 
                             disabled={paying}
@@ -114,6 +119,11 @@ const DermatologistPayments = () => {
                             {paying ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle className="w-4 h-4 mr-2" />}
                             Pay PKR {systemFeePending.toLocaleString()} Now
                         </Button>
+                    ) : (
+                        <div className="bg-white/20 text-white mt-4 py-2 px-4 rounded-lg flex items-center justify-center font-semibold">
+                            <CheckCircle className="w-5 h-5 mr-2" />
+                            All Dues Cleared
+                        </div>
                     )}
                 </Card>
 

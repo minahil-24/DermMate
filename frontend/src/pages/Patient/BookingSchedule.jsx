@@ -319,8 +319,8 @@ const BookingSchedule = () => {
           >
             <CreditCard className="w-8 h-8 text-blue-600" />
             <div>
-              <p className="font-bold text-gray-900">Online (demo)</p>
-              <p className="text-xs text-gray-500">Marked as paid for testing; gateway later</p>
+              <p className="font-bold text-gray-900">Pay with Stripe</p>
+              <p className="text-xs text-gray-500">Secure online payment</p>
             </div>
           </button>
         </div>

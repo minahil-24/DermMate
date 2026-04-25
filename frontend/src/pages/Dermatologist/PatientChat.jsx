@@ -38,6 +38,7 @@ const PatientChat = () => {
   const [newMed, setNewMed] = useState({ name: '', dosage: '', duration: '' })
   const [lifestyle, setLifestyle] = useState('')
   const [planNotes, setPlanNotes] = useState('')
+  const [progress, setProgress] = useState(0)
 
   const [isRecording, setIsRecording] = useState(false)
   const recognitionRef = useRef(null)
@@ -110,6 +111,7 @@ const PatientChat = () => {
       setMedications(tp.medications || [])
       setLifestyle((tp.lifestyle || []).join('\n'))
       setPlanNotes(tp.notes || '')
+      setProgress(res.data?.progress || 0)
       setSelectedComparison((res.data?.comparisons || [])[0] || null)
     } catch (e) {
       setCaze(null)
@@ -218,6 +220,7 @@ const PatientChat = () => {
           medications,
           lifestyle: lifestyle.split('\n').map((s) => s.trim()).filter(Boolean),
           notes: planNotes,
+          // Progress is now managed separately
         },
         { headers: { Authorization: `Bearer ${token}` } }
       )
@@ -228,7 +231,21 @@ const PatientChat = () => {
     }
   }
 
-  const tabs = ['Report', 'comparison', 'notes', 'plan', 'appointments', 'images']
+  const saveProgress = async () => {
+    try {
+      await axios.patch(
+        `${apiUrl}/api/cases/${caseId}/progress`,
+        { progress },
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      addToast({ type: 'success', title: 'Saved', message: 'Recovery progress updated.' })
+      await loadCase()
+    } catch (e) {
+      addToast({ type: 'error', title: 'Error', message: e.response?.data?.message || e.message })
+    }
+  }
+
+  const tabs = ['Report', 'comparison', 'notes', 'progress', 'plan', 'appointments', 'images']
 
   const followUps = caze?.followUps || []
   const now = new Date()
@@ -255,12 +272,24 @@ const PatientChat = () => {
               <ArrowLeft size={18} />
             </button>
 
-            <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
-              <User className="w-5 h-5 text-emerald-600" />
+            <div className="w-10 h-10 rounded-full overflow-hidden bg-emerald-100 flex items-center justify-center shrink-0 border border-emerald-200">
+              {caze?.patient?.profilePhoto ? (
+                <img
+                  src={`${apiUrl}/${caze.patient.profilePhoto.replace(/\\/g, '/')}`}
+                  alt={caze.patient.name}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <img
+                  src={caze?.patient?.gender === 'female' ? '/imgs/default-female.png' : '/imgs/default-male.png'}
+                  alt="Patient"
+                  className="w-full h-full object-cover"
+                />
+              )}
             </div>
 
             <div>
-              <p className="font-semibold">{patient?.name || 'Patient'}</p>
+              <p className="font-semibold">{caze?.patient?.name || 'Patient'}</p>
               <p className="text-xs text-gray-500">Case #{String(caseId || '').slice(-6)}</p>
             </div>
           </div>
@@ -509,6 +538,37 @@ const PatientChat = () => {
 
               <button onClick={saveTreatmentPlan} className="w-full px-5 py-3 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700">
                 Save treatment plan
+              </button>
+            </div>
+          )}
+
+          {activeTab === 'progress' && (
+            <div className="space-y-6">
+              <h2 className="text-xl font-bold text-gray-800 border-b pb-2">Treatment Progress</h2>
+              <div className="space-y-4 bg-emerald-50 p-6 rounded-2xl border border-emerald-100 shadow-sm">
+                <div className="flex justify-between items-center">
+                  <label className="font-black text-emerald-900 uppercase tracking-widest text-sm">Patient Recovery Status</label>
+                  <span className="text-3xl font-black text-emerald-600">{progress}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={progress}
+                  onChange={(e) => setProgress(parseInt(e.target.value))}
+                  className="w-full h-3 bg-emerald-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+                />
+                <div className="flex justify-between text-xs font-bold text-emerald-700 uppercase tracking-tighter">
+                  <span>Initial Diagnosis</span>
+                  <span>Fully Recovered</span>
+                </div>
+                <p className="text-xs text-emerald-700 italic bg-white/50 p-3 rounded-lg border border-emerald-100">
+                  Slide to update the patient's recovery journey. This percentage is visible on their dashboard and helps them stay motivated.
+                </p>
+              </div>
+
+              <button onClick={saveProgress} className="w-full px-6 py-4 bg-emerald-600 text-white font-black uppercase tracking-widest text-sm rounded-xl hover:bg-emerald-700 shadow-lg hover:shadow-emerald-100 transition-all">
+                Update & Notify Patient
               </button>
             </div>
           )}

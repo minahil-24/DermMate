@@ -76,6 +76,55 @@ export const debounce = (func, wait) => {
       func(...args)
     }
     clearTimeout(timeout)
-    timeout = setTimeout(later, wait)
   }
+}
+
+import jsPDF from 'jspdf'
+
+export const generateChallanPDF = ({ patient, doctor, paymentMethod, fee, date, timeSlot }) => {
+  const doc = new jsPDF('p', 'pt', 'a4')
+
+  const lineHeight = 20
+  let y = 40
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(22)
+  doc.text('Appointment Challan', 40, y)
+
+  y += lineHeight * 2
+  doc.setFontSize(14)
+  doc.setFont('helvetica', 'bold')
+  doc.text('Patient Details', 40, y)
+  y += lineHeight
+  doc.setFont('helvetica', 'normal')
+  doc.text(`Name: ${patient?.name || 'N/A'}`, 40, y)
+  doc.text(`Email: ${patient?.email || 'N/A'}`, 300, y)
+  y += lineHeight
+
+  y += lineHeight
+  doc.setFont('helvetica', 'bold')
+  doc.text('Dermatologist Details', 40, y)
+  y += lineHeight
+  doc.setFont('helvetica', 'normal')
+  doc.text(`Dr. Name: ${doctor?.name || 'N/A'}`, 40, y)
+  doc.text(`Specialty: ${doctor?.specialty || 'Dermatologist'}`, 300, y)
+  y += lineHeight
+
+  y += lineHeight
+  doc.setFont('helvetica', 'bold')
+  doc.text('Appointment & Payment', 40, y)
+  y += lineHeight
+  doc.setFont('helvetica', 'normal')
+  doc.text(`Date & Time: ${date ? new Date(date).toLocaleDateString() : 'N/A'} at ${timeSlot || 'N/A'}`, 40, y)
+  y += lineHeight
+  doc.text(`Consultation Fee: PKR ${fee || 0}`, 40, y)
+  y += lineHeight
+  doc.text(`Payment Method: ${paymentMethod === 'in_clinic' ? 'Pay at Clinic' : paymentMethod}`, 40, y)
+  y += lineHeight
+  doc.text(`Status: Pending Payment At Clinic`, 40, y)
+
+  doc.setLineWidth(0.5)
+  doc.line(40, y + 20, 555, y + 20)
+
+  doc.save('appointment_challan.pdf')
 }

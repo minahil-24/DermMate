@@ -35,6 +35,7 @@ import PatientAppointments from './pages/Patient/PatientAppointments'
 import Payment from './pages/Patient/Payment'
 import AlopeciaDetection from './pages/Patient/AlopeciaDetection'
 import DermatologistDetail from './pages/Patient/DermatologistDetail'
+import PaymentSuccess from './pages/PaymentSuccess'
 
 // Dermatologist Pages
 import DermatologistDashboard from './pages/Dermatologist/DermatologistDashboard'
@@ -59,8 +60,7 @@ import AIModelManagement from './pages/admin/AIModelManagement'
 import ReportsAnalytics from './pages/admin/ReportsAnalytics'
 import BroadcastNotifications from './pages/admin/BroadcastNotifications'
 import AdminAlerts from './pages/admin/AdminAlerts'
-import SystemRevenue from './pages/admin/SystemRevenue'
-
+import SystemRevenue from "./pages/admin/SystemRevenue";
 // System Pages
 import ImageValidation from './pages/system/ImageValidation'
 import MultiAngleValidation from './pages/system/MultiAngleValidation'
@@ -279,6 +279,15 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={['patient']}>
                 <Payment />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/payment/success"
+            element={
+              <ProtectedRoute allowedRoles={['patient', 'dermatologist']}>
+                <PaymentSuccess />
               </ProtectedRoute>
             }
           />

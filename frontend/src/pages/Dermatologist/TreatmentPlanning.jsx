@@ -1,89 +1,75 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { motion } from 'framer-motion'
-import { ClipboardList, Mic, MicOff, Plus, X, Stethoscope } from 'lucide-react'
+import { ClipboardList, Loader2, User, ExternalLink, Pill, Heart } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import axios from 'axios'
 import Card from '../../components/ui/Card'
-import Button from '../../components/ui/Button'
 import Breadcrumbs from '../../components/common/Breadcrumbs'
+import EmptyState from '../../components/common/EmptyState'
+import { useAuthStore } from '../../store/authStore'
 import { useToastStore } from '../../store/toastStore'
-import { normalizeMedicalText } from '../../utils/nlpMedicalNormalizer'
+import { formatDateTime } from '../../utils/helpers'
 
 const TreatmentPlanning = () => {
+  const navigate = useNavigate()
+  const { token } = useAuthStore()
   const addToast = useToastStore((state) => state.addToast)
-  const [medications, setMedications] = useState([
-    { name: 'Minoxidil 5%', dosage: 'Apply twice daily', duration: '6 months' },
-  ])
-  const [newMed, setNewMed] = useState({ name: '', dosage: '', duration: '' })
-  const [lifestyle, setLifestyle] = useState(['Reduce stress', 'Balanced diet'])
-  const [notes, setNotes] = useState('')
-  const [isRecording, setIsRecording] = useState(false)
-  
-  const recognitionRef = useRef(null)
+  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000'
 
-  useEffect(() => {
-    // Initialize Web Speech API
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
-    if (SpeechRecognition) {
-      recognitionRef.current = new SpeechRecognition()
-      recognitionRef.current.continuous = true
-      recognitionRef.current.interimResults = true
-      
-      recognitionRef.current.onresult = (event) => {
-        let currentTranscript = ''
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const transcript = event.results[i][0].transcript
-          if (event.results[i].isFinal) {
-            currentTranscript += transcript + ' '
-          }
-        }
-        
-        if (currentTranscript) {
-          // Process text pipeline
-          const processedText = normalizeMedicalText(currentTranscript)
-          
-          setNotes(prev => prev ? prev + ' ' + processedText : processedText)
-        }
-      }
+  const [loading, setLoading] = useState(true)
+  const [cases, setCases] = useState([])
 
-      recognitionRef.current.onerror = (event) => {
-        console.error('Speech recognition error', event.error)
-        setIsRecording(false)
-        if(event.error !== 'no-speech') {
-          addToast({ type: 'error', title: 'Mic Error', message: `Microphone issue: ${event.error}` })
-        }
-      }
-
-      recognitionRef.current.onend = () => {
-        setIsRecording(false)
-      }
+  const loadCases = useCallback(async () => {
+    if (!token) return
+    try {
+      setLoading(true)
+      const res = await axios.get(`${apiUrl}/api/cases/doctor/incoming`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      setCases(res.data || [])
+    } catch {
+      setCases([])
+      addToast({ type: 'error', title: 'Error', message: 'Could not load cases' })
+    } finally {
+      setLoading(false)
     }
-  }, [addToast])
+  }, [token, apiUrl, addToast])
 
-  const toggleRecording = () => {
-    if (!recognitionRef.current) {
-      addToast({ type: 'error', title: 'Unsupported Browser', message: 'Speech recognition is not supported in your browser.' })
-      return
-    }
+  useEffect(() => { loadCases() }, [loadCases])
 
-    if (isRecording) {
-      recognitionRef.current.stop()
-      setIsRecording(false)
-    } else {
-      recognitionRef.current.start()
-      setIsRecording(true)
-      addToast({ type: 'info', title: 'Recording Started', message: 'Whisper-powered speech-to-text active. Speak your clinical notes.' })
-    }
-  }
+  /* Collect all cases that have a treatment plan set */
+  const casesWithPlans = useMemo(() => {
+    return cases
+      .filter((c) => !c.isCancelledByPatient && c.doctorReviewStatus === 'accepted')
+      .filter((c) => {
+        const tp = c.treatmentPlan
+        if (!tp) return false
+        return (tp.medications?.length > 0) || (tp.lifestyle?.length > 0) || tp.notes
+      })
+      .sort((a, b) => {
+        const aDate = a.treatmentPlan?.updatedAt || a.updatedAt
+        const bDate = b.treatmentPlan?.updatedAt || b.updatedAt
+        return new Date(bDate) - new Date(aDate)
+      })
+  }, [cases])
 
-  const handleAddMedication = () => {
-    if (newMed.name && newMed.dosage) {
-      setMedications([...medications, newMed])
-      setNewMed({ name: '', dosage: '', duration: '' })
-      addToast({ type: 'success', title: 'Medication Added', message: 'New medication added to treatment plan' })
-    }
-  }
+  /* Cases without plans (accepted but no treatment plan yet) */
+  const casesWithoutPlans = useMemo(() => {
+    return cases
+      .filter((c) => !c.isCancelledByPatient && c.doctorReviewStatus === 'accepted')
+      .filter((c) => {
+        const tp = c.treatmentPlan
+        if (!tp) return true
+        return (tp.medications?.length === 0) && (tp.lifestyle?.length === 0) && !tp.notes
+      })
+  }, [cases])
 
-  const handleSave = () => {
-    addToast({ type: 'success', title: 'Treatment Plan Saved', message: 'Treatment plan has been saved successfully' })
+  if (loading) {
+    return (
+      <div className="flex justify-center py-20">
+        <Loader2 className="w-12 h-12 animate-spin text-emerald-500" />
+      </div>
+    )
   }
 
   return (
@@ -91,114 +77,120 @@ const TreatmentPlanning = () => {
       <Breadcrumbs items={[{ label: 'Treatment Planning' }]} />
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Treatment Planning</h1>
-        <p className="text-gray-600">Create and manage patient treatment plans</p>
+        <p className="text-gray-600">Overview of all treatment plans across your accepted cases. Open a case to edit a plan.</p>
       </div>
-      <Card>
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
-            <ClipboardList className="w-6 h-6" />
-            Treatment Plan
-          </h2>
-        </div>
-        <div className="space-y-6">
-          
-          {/* Clinical Notes with Speech to text */}
-          <div className="p-4 bg-emerald-50/50 border border-emerald-100 rounded-xl">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="font-semibold text-emerald-900 flex items-center gap-2">
-                <Stethoscope className="w-5 h-5 text-emerald-600"/>
-                Clinical Notes
-              </h3>
-              <Button 
-                variant={isRecording ? "secondary" : "outline"} 
-                size="sm" 
-                onClick={toggleRecording}
-                className={isRecording ? "bg-red-50 text-red-600 border-red-200 hover:bg-red-100" : ""}
-              >
-                {isRecording ? <MicOff className="w-4 h-4 mr-2" /> : <Mic className="w-4 h-4 mr-2" />}
-                {isRecording ? 'Stop Recording' : 'Voice Input (Whisper)'}
-              </Button>
-            </div>
-            {isRecording && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 mb-2">
-                <span className="relative flex h-3 w-3">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
-                </span>
-                <p className="text-xs text-red-600 font-medium">Listening to medical terminology...</p>
-              </motion.div>
-            )}
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={4}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all resize-y shadow-inner text-gray-800"
-              placeholder="Type your notes or click 'Voice Input' to use speech-to-text..."
-            />
-          </div>
 
-          <div>
-            <h3 className="font-semibold text-gray-900 mb-4">Medications</h3>
-            <div className="space-y-3">
-              {medications.map((med, index) => (
-                <div key={index} className="p-4 bg-gray-50 rounded-lg flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-gray-900">{med.name}</p>
-                    <p className="text-sm text-gray-600">{med.dosage} - {med.duration}</p>
+      {casesWithPlans.length === 0 && casesWithoutPlans.length === 0 ? (
+        <EmptyState
+          icon={ClipboardList}
+          title="No accepted cases"
+          message="Accept patient cases from the Appointments page to start creating treatment plans."
+        />
+      ) : (
+        <div className="space-y-6">
+          {/* Cases with treatment plans */}
+          {casesWithPlans.map((c, idx) => {
+            const tp = c.treatmentPlan || {}
+            return (
+              <motion.div
+                key={c._id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: idx * 0.05 }}
+              >
+                <Card className="p-6 shadow-sm hover:shadow-md transition-all">
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center">
+                        <User className="w-5 h-5 text-emerald-600" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-gray-900">{c.patient?.name || 'Unknown Patient'}</p>
+                        <p className="text-xs text-gray-500 capitalize">{c.complaintType} case</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => navigate(`/dermatologist/pcases/${c._id}`)}
+                      className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-emerald-600 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors"
+                    >
+                      Edit <ExternalLink className="w-3.5 h-3.5" />
+                    </button>
                   </div>
-                  <button onClick={() => setMedications(medications.filter((_, i) => i !== index))}>
-                    <X className="w-5 h-5 text-red-600" />
-                  </button>
-                </div>
-              ))}
-              <div className="p-4 border-2 border-dashed border-gray-300 rounded-lg space-y-3">
-                <input
-                  type="text"
-                  placeholder="Medication name"
-                  value={newMed.name}
-                  onChange={(e) => setNewMed({ ...newMed, name: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
-                />
-                <div className="grid grid-cols-2 gap-3">
-                  <input
-                    type="text"
-                    placeholder="Dosage"
-                    value={newMed.dosage}
-                    onChange={(e) => setNewMed({ ...newMed, dosage: e.target.value })}
-                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Duration"
-                    value={newMed.duration}
-                    onChange={(e) => setNewMed({ ...newMed, duration: e.target.value })}
-                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
-                  />
-                </div>
-                <Button onClick={handleAddMedication} variant="outline" size="sm">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Medication
-                </Button>
+
+                  {/* Medications */}
+                  {(tp.medications || []).length > 0 && (
+                    <div className="mb-4">
+                      <p className="text-sm font-semibold text-gray-700 flex items-center gap-1 mb-2">
+                        <Pill className="w-4 h-4 text-rose-500" /> Medications
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {tp.medications.map((med, midx) => (
+                          <div key={midx} className="p-3 bg-gray-50 rounded-lg border border-gray-100">
+                            <p className="font-medium text-gray-900 text-sm">{med.name}</p>
+                            <p className="text-xs text-gray-500">{med.dosage}{med.duration ? ` · ${med.duration}` : ''}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Lifestyle */}
+                  {(tp.lifestyle || []).length > 0 && (
+                    <div className="mb-4">
+                      <p className="text-sm font-semibold text-gray-700 flex items-center gap-1 mb-2">
+                        <Heart className="w-4 h-4 text-pink-500" /> Lifestyle
+                      </p>
+                      <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
+                        {tp.lifestyle.map((item, lidx) => (
+                          <li key={lidx}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Notes */}
+                  {tp.notes && (
+                    <div className="p-3 bg-yellow-50 border border-yellow-100 rounded-lg">
+                      <p className="text-sm text-gray-800 whitespace-pre-wrap">{tp.notes}</p>
+                    </div>
+                  )}
+
+                  {tp.updatedAt && (
+                    <p className="text-xs text-gray-400 mt-3 text-right">Updated: {formatDateTime(tp.updatedAt)}</p>
+                  )}
+                </Card>
+              </motion.div>
+            )
+          })}
+
+          {/* Cases needing plans */}
+          {casesWithoutPlans.length > 0 && (
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 mb-3 mt-6">Cases Awaiting Treatment Plan</h2>
+              <div className="space-y-2">
+                {casesWithoutPlans.map((c) => (
+                  <Card
+                    key={c._id}
+                    className="p-4 border-2 border-dashed border-gray-200 hover:border-emerald-300 cursor-pointer transition-all"
+                    onClick={() => navigate(`/dermatologist/pcases/${c._id}`)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <User className="w-5 h-5 text-gray-400" />
+                        <div>
+                          <p className="font-medium text-gray-900">{c.patient?.name || 'Unknown'}</p>
+                          <p className="text-xs text-gray-500 capitalize">{c.complaintType}</p>
+                        </div>
+                      </div>
+                      <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded-full font-semibold">No plan yet</span>
+                    </div>
+                  </Card>
+                ))}
               </div>
             </div>
-          </div>
-          <div>
-            <h3 className="font-semibold text-gray-900 mb-4">Lifestyle Recommendations</h3>
-            <textarea
-              value={lifestyle.join('\n')}
-              onChange={(e) => setLifestyle(e.target.value.split('\n'))}
-              rows={4}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
-              placeholder="Enter lifestyle recommendations..."
-            />
-          </div>
-          <div className="flex justify-end">
-            <Button onClick={handleSave} size="lg">
-              Save Treatment Plan
-            </Button>
-          </div>
+          )}
         </div>
-      </Card>
+      )}
     </div>
   )
 }

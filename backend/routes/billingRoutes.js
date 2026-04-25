@@ -5,11 +5,17 @@ const {
   getDermatologistBilling, 
   payDermatologistFees, 
   setDermatologistDeadline,
-  getAllDermatologistBillingForAdmin
+  getAllDermatologistBillingForAdmin,
+  createPatientSession,
+  createDermatologistSession,
+  finalizePatientPayment
 } = require('../controllers/BillingController');
 
 router.get('/dermatologist', auth(['dermatologist']), getDermatologistBilling);
 router.post('/pay', auth(['dermatologist']), payDermatologistFees);
+router.post('/stripe/create-patient-session', auth(['patient']), createPatientSession);
+router.post('/stripe/finalize-patient-payment', auth(['patient']), finalizePatientPayment);
+router.post('/stripe/create-dermatologist-session', auth(['dermatologist']), createDermatologistSession);
 
 // Admin Routes
 router.post('/admin/set-deadline', auth(['admin']), setDermatologistDeadline);
