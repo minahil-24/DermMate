@@ -107,6 +107,7 @@ const caseSchema = new mongoose.Schema(
 
     /** Treatment progress percentage (0-100) */
     progress: { type: Number, default: 0, min: 0, max: 100 },
+    processedSessions: { type: [String], default: [] },
   },
   { timestamps: true }
 )

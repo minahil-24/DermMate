@@ -89,8 +89,8 @@ async function migrateLegacyCertifications() {
 app.use('/api/auth', authRoutes)
 app.use('/api/clinics', clinicRoutes)
 app.use('/api/notifications', notificationRoutes)
-app.use('/api/cases', checkBlock, caseRoutes)
-app.use('/api/billing', checkBlock, billingRoutes)
+app.use('/api/cases', caseRoutes)
+app.use('/api/billing', billingRoutes)
 app.use('/api/support', supportRoutes)
 app.use('/api/admin', adminRoutes)
 

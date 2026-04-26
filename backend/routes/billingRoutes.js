@@ -1,6 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
+const checkBlock = require('../middleware/checkBlock');
+const BillingController = require('../controllers/BillingController');
+
+// Destructure controllers for cleaner route definitions
 const { 
   getDermatologistBilling, 
   payDermatologistFees, 
@@ -9,12 +13,17 @@ const {
   createPatientSession,
   createDermatologistSession,
   finalizePatientPayment
-} = require('../controllers/BillingController');
+} = BillingController;
 
-router.get('/dermatologist', auth(['dermatologist']), getDermatologistBilling);
+// Dermatologist Routes
+router.get('/dermatologist', auth(['dermatologist']), checkBlock, getDermatologistBilling);
 router.post('/pay', auth(['dermatologist']), payDermatologistFees);
+
+// Patient Routes
 router.post('/stripe/create-patient-session', auth(['patient']), createPatientSession);
 router.post('/stripe/finalize-patient-payment', auth(['patient']), finalizePatientPayment);
+
+// Stripe Session Creation
 router.post('/stripe/create-dermatologist-session', auth(['dermatologist']), createDermatologistSession);
 
 // Admin Routes

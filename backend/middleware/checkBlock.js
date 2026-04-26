@@ -16,10 +16,16 @@ const checkBlock = async (req, res, next) => {
 
         if (isBlocked) {
           // Allow billing requests to pass through so they can unblock
+          console.log('User is blocked. checking URL:', req.originalUrl);
           if (req.originalUrl.includes('/api/billing')) {
+              console.log('Allowing billing request through block');
               return next();
           }
-          return res.status(403).json({ message: "Blocked due to unpaid fees. Please pay your pending charges to continue." });
+          console.log('Blocking request due to unpaid fees');
+          return res.status(403).json({ 
+            message: "Blocked due to unpaid fees. Please pay your pending charges to continue.",
+            code: 'ACCOUNT_BLOCKED_DUE_TO_FEES'
+          });
         }
       }
     }

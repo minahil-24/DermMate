@@ -5,6 +5,7 @@ const mongoose = require('mongoose')
 const MedicalCase = require('../models/Case')
 const User = require('../models/User')
 const auth = require('../middleware/auth')
+const checkBlock = require('../middleware/checkBlock')
 const upload = require('../middleware/caseUpload')
 const doctorUpload = require('../middleware/caseDoctorUpload')
 const { notifyUser } = require('../utils/notify')
@@ -330,7 +331,7 @@ router.get('/my', auth(['patient']), async (req, res) => {
   }
 })
 
-router.get('/doctor/incoming', auth(['dermatologist']), async (req, res) => {
+router.get('/doctor/incoming', auth(['dermatologist']), checkBlock, async (req, res) => {
   try {
     const list = await MedicalCase.find({
       doctor: req.user.id,
@@ -412,7 +413,7 @@ router.get('/:caseId', auth(['patient', 'dermatologist']), async (req, res) => {
 })
 
 // Doctor upload (reports/comparisons attachments)
-router.post('/:caseId/doctor-upload', auth(['dermatologist']), doctorUpload.single('file'), async (req, res) => {
+router.post('/:caseId/doctor-upload', auth(['dermatologist']), checkBlock, doctorUpload.single('file'), async (req, res) => {
   try {
     const caseId = String(req.params.caseId || '').trim()
     if (!caseId || !mongoose.Types.ObjectId.isValid(caseId)) {
@@ -432,7 +433,7 @@ router.post('/:caseId/doctor-upload', auth(['dermatologist']), doctorUpload.sing
   }
 })
 
-router.post('/:caseId/notes', auth(['dermatologist']), async (req, res) => {
+router.post('/:caseId/notes', auth(['dermatologist']), checkBlock, async (req, res) => {
   try {
     const { text } = req.body
     if (!text || !String(text).trim()) {
@@ -454,7 +455,7 @@ router.post('/:caseId/notes', auth(['dermatologist']), async (req, res) => {
   }
 })
 
-router.post('/:caseId/reports', auth(['dermatologist']), async (req, res) => {
+router.post('/:caseId/reports', auth(['dermatologist']), checkBlock, async (req, res) => {
   try {
     const { title, description = '', filePath = '' } = req.body
     if (!title || !String(title).trim()) {
@@ -481,7 +482,7 @@ router.post('/:caseId/reports', auth(['dermatologist']), async (req, res) => {
   }
 })
 
-router.post('/:caseId/comparisons', auth(['dermatologist']), async (req, res) => {
+router.post('/:caseId/comparisons', auth(['dermatologist']), checkBlock, async (req, res) => {
   try {
     const { beforePath, afterPath } = req.body
     if (!beforePath || !afterPath) {
@@ -503,7 +504,7 @@ router.post('/:caseId/comparisons', auth(['dermatologist']), async (req, res) =>
   }
 })
 
-router.post('/:caseId/followups', auth(['dermatologist']), async (req, res) => {
+router.post('/:caseId/followups', auth(['dermatologist']), checkBlock, async (req, res) => {
   try {
     const { date, timeSlot, reason = 'Follow-up' } = req.body
     if (!date || !timeSlot) {
@@ -542,7 +543,7 @@ router.post('/:caseId/followups', auth(['dermatologist']), async (req, res) => {
   }
 })
 
-router.patch('/:caseId/progress', auth(['dermatologist']), async (req, res) => {
+router.patch('/:caseId/progress', auth(['dermatologist']), checkBlock, async (req, res) => {
   try {
     const { progress } = req.body
     if (progress === undefined) return res.status(400).json({ message: 'Progress is required' })
@@ -573,7 +574,7 @@ router.patch('/:caseId/progress', auth(['dermatologist']), async (req, res) => {
   }
 })
 
-router.put('/:caseId/treatment-plan', auth(['dermatologist']), async (req, res) => {
+router.put('/:caseId/treatment-plan', auth(['dermatologist']), checkBlock, async (req, res) => {
   try {
     const { medications = [], lifestyle = [], notes = '', progress } = req.body || {}
 
@@ -707,8 +708,8 @@ async function patchDoctorReview(req, res) {
 }
 
 // Prefer /review/:caseId (clearer; avoids param ordering issues). Legacy: /:caseId/review
-router.patch('/review/:caseId', auth(['dermatologist']), patchDoctorReview)
-router.patch('/:caseId/review', auth(['dermatologist']), patchDoctorReview)
+router.patch('/review/:caseId', auth(['dermatologist']), checkBlock, patchDoctorReview)
+router.patch('/:caseId/review', auth(['dermatologist']), checkBlock, patchDoctorReview)
 
 router.patch('/:caseId/cancel', auth(['patient']), async (req, res) => {
   try {

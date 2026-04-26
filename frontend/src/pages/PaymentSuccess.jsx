@@ -44,12 +44,13 @@ const PaymentSuccess = () => {
                 addToast({ type: 'success', title: 'Payment Confirmed', message: 'Your payment was successful.' });
                 
                 setTimeout(() => {
-                    navigate(type === 'patient' ? '/patient/cases' : '/dermatologist/payments');
+                    const redirectRole = searchParams.get('type') || (token ? JSON.parse(atob(token.split('.')[1])).role : 'patient');
+                    navigate(redirectRole === 'patient' ? '/patient/cases' : '/dermatologist/payments');
                 }, 3000);
             } catch (error) {
-                console.error(error);
+                console.error('Finalization error detail:', error.response?.data || error.message);
                 setStatus('error');
-                addToast({ type: 'error', title: 'Payment Error', message: 'Failed to verify payment.' });
+                addToast({ type: 'error', title: 'Payment Error', message: error.response?.data?.message || 'Failed to verify payment.' });
             }
         };
         

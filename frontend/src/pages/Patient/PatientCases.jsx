@@ -39,6 +39,7 @@ const PatientCases = () => {
 
   const payLabel = (c) => {
     if (c.paymentStatus === 'paid') return 'Paid'
+    if (c.paymentMethod === 'online') return 'Pending (Online)'
     if (c.paymentMethod === 'in_clinic' || c.paymentMethod === 'cod' || c.paymentMethod === 'cash') {
       return 'Pay in clinic (pending)'
     }

@@ -276,8 +276,10 @@ const DermatologistAppointments = () => {
                 <strong>Complaint:</strong> <span className="capitalize">{selectedCase.complaintType}</span> ·{' '}
                 <strong>Fee:</strong> PKR {selectedCase.consultationFee ?? 0} ·{' '}
                 <strong>Payment:</strong>{' '}
-                {selectedCase.paymentStatus === 'paid' || selectedCase.paymentMethod === 'online'
+                {selectedCase.paymentStatus === 'paid'
                   ? 'Paid'
+                  : selectedCase.paymentMethod === 'online'
+                  ? 'Pending (Online)'
                   : 'Pending (pay in clinic)'}
               </p>
             </div>

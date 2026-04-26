@@ -131,12 +131,14 @@ const SystemRevenue = () => {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y bg-white">
-                                    {doctors.length === 0 ? (
+                                    {doctors.filter(d => (d.systemFeePending || 0) > 0).length === 0 ? (
                                         <tr>
-                                            <td colSpan="6" className="text-center py-8 text-gray-500 italic">No dermatologists found.</td>
+                                            <td colSpan="6" className="text-center py-8 text-gray-500 italic">No dermatologists with pending fees found.</td>
                                         </tr>
                                     ) : (
-                                        doctors.map((p, index) => (
+                                        doctors
+                                            .filter(d => (d.systemFeePending || 0) > 0)
+                                            .map((p, index) => (
                                             <motion.tr
                                                 key={p.id}
                                                 initial={{ opacity: 0 }}
