@@ -98,7 +98,15 @@ router.get('/nearby', async (req, res) => {
 
     if (search) {
       const rx = new RegExp(escapeRegex(search), 'i')
-      and.push({ $or: [{ name: rx }, { clinicName: rx }] })
+      and.push({
+        $or: [
+          { name: rx },
+          { clinicName: rx },
+          { clinicAddress: rx },
+          { city: rx },
+          { location: rx },
+        ],
+      })
     }
     if (city) {
       const rx = new RegExp(escapeRegex(city), 'i')

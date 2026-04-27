@@ -19,9 +19,9 @@ const Button = ({
   }
 
   const sizes = {
-    sm: 'px-3 py-1.5 text-sm',
-    md: 'px-4 py-2 text-base',
-    lg: 'px-6 py-3 text-lg',
+    sm: 'px-3 py-1.5 text-xs sm:text-sm',
+    md: 'px-4 py-2 text-sm sm:text-base',
+    lg: 'px-5 py-3 text-base sm:text-lg',
   }
 
   return (
@@ -34,6 +34,9 @@ const Button = ({
         rounded-lg 
         font-medium 
         transition-colors 
+        inline-flex items-center justify-center gap-2 text-center leading-tight
+        whitespace-normal break-words
+        max-w-full min-w-0
         disabled:opacity-50 
         disabled:cursor-not-allowed
         ${className}

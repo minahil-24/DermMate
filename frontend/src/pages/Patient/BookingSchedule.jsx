@@ -73,11 +73,17 @@ const BookingSchedule = () => {
           complaintType: res.data.complaintType,
         })
       } catch {
-        /* ignore */
+        mergeBooking({ draftCaseId: null, complaintType: null })
+        addToast({
+          type: 'info',
+          title: 'Draft not found',
+          message: 'That draft was removed. Please continue with a new booking flow.',
+        })
+        navigate('/patient/booking/complaint', { replace: true, state: { doctorId } })
       }
     }
     syncDraft()
-  }, [draftCaseId, token, apiUrl])
+  }, [draftCaseId, token, apiUrl, addToast, doctorId, navigate])
 
   useEffect(() => {
     if (!doctorId || !token) return

@@ -291,6 +291,7 @@ router.post('/resubmit/:caseId', auth(['patient']), async (req, res) => {
 
     c.caseStatus = 'submitted'
     c.doctorReviewStatus = 'pending'
+    c.doctorAcceptedAt = null
     c.isCancelledByPatient = false
     c.doctorRejectionComment = ''
     c.doctorTomorrowReminderAptYmd = ''
@@ -314,6 +315,30 @@ router.post('/resubmit/:caseId', auth(['patient']), async (req, res) => {
     }
 
     res.json({ message: 'Resubmitted', case: stripAffectedAiForPatient(populated) })
+  } catch (error) {
+    res.status(500).json({ message: error.message })
+  }
+})
+
+/** Delete a declined draft case (patient-owned) */
+router.delete('/draft/:caseId', auth(['patient']), async (req, res) => {
+  try {
+    const caseId = String(req.params.caseId || '').trim()
+    if (!caseId || !mongoose.Types.ObjectId.isValid(caseId)) {
+      return res.status(400).json({ message: 'Invalid case id' })
+    }
+
+    const c = await MedicalCase.findById(caseId)
+    if (!c) return res.status(404).json({ message: 'Case not found' })
+    if (String(c.patient) !== String(req.user.id)) {
+      return res.status(403).json({ message: 'Not authorized for this case' })
+    }
+    if (c.caseStatus !== 'draft' || c.doctorReviewStatus !== 'rejected') {
+      return res.status(400).json({ message: 'Only declined draft cases can be deleted' })
+    }
+
+    await c.deleteOne()
+    res.json({ message: 'Draft case deleted' })
   } catch (error) {
     res.status(500).json({ message: error.message })
   }
@@ -455,6 +480,117 @@ router.post('/:caseId/notes', auth(['dermatologist']), checkBlock, async (req, r
   }
 })
 
+router.patch('/:caseId/notes/:noteId', auth(['dermatologist']), checkBlock, async (req, res) => {
+  try {
+    const { text } = req.body || {}
+    if (!text || !String(text).trim()) {
+      return res.status(400).json({ message: 'text is required' })
+    }
+
+    const caseId = String(req.params.caseId || '').trim()
+    const noteId = String(req.params.noteId || '').trim()
+    if (!caseId || !mongoose.Types.ObjectId.isValid(caseId) || !noteId || !mongoose.Types.ObjectId.isValid(noteId)) {
+      return res.status(400).json({ message: 'Invalid case id or note id' })
+    }
+
+    const c = await MedicalCase.findById(caseId)
+    if (!c) return res.status(404).json({ message: 'Case not found' })
+    if (String(c.doctor) !== String(req.user.id)) {
+      return res.status(403).json({ message: 'Not authorized for this case' })
+    }
+
+    const note = (c.clinicalNotes || []).id(noteId)
+    if (!note) return res.status(404).json({ message: 'Note not found' })
+    note.text = String(text).trim()
+
+    await c.save()
+    res.json({ message: 'Note updated' })
+  } catch (error) {
+    res.status(500).json({ message: error.message })
+  }
+})
+
+router.delete('/:caseId/notes/:noteId', auth(['dermatologist']), checkBlock, async (req, res) => {
+  try {
+    const caseId = String(req.params.caseId || '').trim()
+    const noteId = String(req.params.noteId || '').trim()
+    if (!caseId || !mongoose.Types.ObjectId.isValid(caseId) || !noteId || !mongoose.Types.ObjectId.isValid(noteId)) {
+      return res.status(400).json({ message: 'Invalid case id or note id' })
+    }
+
+    const c = await MedicalCase.findById(caseId)
+    if (!c) return res.status(404).json({ message: 'Case not found' })
+    if (String(c.doctor) !== String(req.user.id)) {
+      return res.status(403).json({ message: 'Not authorized for this case' })
+    }
+
+    const note = (c.clinicalNotes || []).id(noteId)
+    if (!note) return res.status(404).json({ message: 'Note not found' })
+    note.deleteOne()
+
+    await c.save()
+    res.json({ message: 'Note deleted' })
+  } catch (error) {
+    res.status(500).json({ message: error.message })
+  }
+})
+
+// Compatibility aliases for clients/environments that cannot use PATCH/DELETE reliably.
+router.post('/:caseId/notes/:noteId/update', auth(['dermatologist']), checkBlock, async (req, res) => {
+  try {
+    const { text } = req.body || {}
+    if (!text || !String(text).trim()) {
+      return res.status(400).json({ message: 'text is required' })
+    }
+
+    const caseId = String(req.params.caseId || '').trim()
+    const noteId = String(req.params.noteId || '').trim()
+    if (!caseId || !mongoose.Types.ObjectId.isValid(caseId) || !noteId || !mongoose.Types.ObjectId.isValid(noteId)) {
+      return res.status(400).json({ message: 'Invalid case id or note id' })
+    }
+
+    const c = await MedicalCase.findById(caseId)
+    if (!c) return res.status(404).json({ message: 'Case not found' })
+    if (String(c.doctor) !== String(req.user.id)) {
+      return res.status(403).json({ message: 'Not authorized for this case' })
+    }
+
+    const note = (c.clinicalNotes || []).id(noteId)
+    if (!note) return res.status(404).json({ message: 'Note not found' })
+    note.text = String(text).trim()
+    await c.save()
+
+    res.json({ message: 'Note updated' })
+  } catch (error) {
+    res.status(500).json({ message: error.message })
+  }
+})
+
+router.post('/:caseId/notes/:noteId/delete', auth(['dermatologist']), checkBlock, async (req, res) => {
+  try {
+    const caseId = String(req.params.caseId || '').trim()
+    const noteId = String(req.params.noteId || '').trim()
+    if (!caseId || !mongoose.Types.ObjectId.isValid(caseId) || !noteId || !mongoose.Types.ObjectId.isValid(noteId)) {
+      return res.status(400).json({ message: 'Invalid case id or note id' })
+    }
+
+    const c = await MedicalCase.findById(caseId)
+    if (!c) return res.status(404).json({ message: 'Case not found' })
+    if (String(c.doctor) !== String(req.user.id)) {
+      return res.status(403).json({ message: 'Not authorized for this case' })
+    }
+
+    const note = (c.clinicalNotes || []).id(noteId)
+    if (!note) return res.status(404).json({ message: 'Note not found' })
+    note.deleteOne()
+    await c.save()
+
+    res.json({ message: 'Note deleted' })
+  } catch (error) {
+    res.status(500).json({ message: error.message })
+  }
+})
+
 router.post('/:caseId/reports', auth(['dermatologist']), checkBlock, async (req, res) => {
   try {
     const { title, description = '', filePath = '' } = req.body
@@ -543,6 +679,167 @@ router.post('/:caseId/followups', auth(['dermatologist']), checkBlock, async (re
   }
 })
 
+router.patch('/:caseId/followups/:followUpId', auth(['dermatologist']), checkBlock, async (req, res) => {
+  try {
+    const { date, timeSlot, reason = 'Follow-up' } = req.body || {}
+    if (!date || !timeSlot) {
+      return res.status(400).json({ message: 'date and timeSlot are required' })
+    }
+
+    const caseId = String(req.params.caseId || '').trim()
+    const followUpId = String(req.params.followUpId || '').trim()
+    if (!caseId || !mongoose.Types.ObjectId.isValid(caseId) || !followUpId || !mongoose.Types.ObjectId.isValid(followUpId)) {
+      return res.status(400).json({ message: 'Invalid case id or follow-up id' })
+    }
+
+    const c = await MedicalCase.findById(caseId)
+    if (!c) return res.status(404).json({ message: 'Case not found' })
+    if (String(c.doctor) !== String(req.user.id)) {
+      return res.status(403).json({ message: 'Not authorized for this case' })
+    }
+
+    const follow = (c.followUps || []).id(followUpId)
+    if (!follow) return res.status(404).json({ message: 'Follow-up not found' })
+
+    follow.date = new Date(date)
+    follow.timeSlot = String(timeSlot)
+    follow.reason = String(reason || 'Follow-up')
+    await c.save()
+
+    res.json({ message: 'Follow-up updated' })
+  } catch (error) {
+    res.status(500).json({ message: error.message })
+  }
+})
+
+router.delete('/:caseId/followups/:followUpId', auth(['dermatologist']), checkBlock, async (req, res) => {
+  try {
+    const caseId = String(req.params.caseId || '').trim()
+    const followUpId = String(req.params.followUpId || '').trim()
+    if (!caseId || !mongoose.Types.ObjectId.isValid(caseId) || !followUpId || !mongoose.Types.ObjectId.isValid(followUpId)) {
+      return res.status(400).json({ message: 'Invalid case id or follow-up id' })
+    }
+
+    const c = await MedicalCase.findById(caseId)
+    if (!c) return res.status(404).json({ message: 'Case not found' })
+    if (String(c.doctor) !== String(req.user.id)) {
+      return res.status(403).json({ message: 'Not authorized for this case' })
+    }
+
+    const follow = (c.followUps || []).id(followUpId)
+    if (!follow) return res.status(404).json({ message: 'Follow-up not found' })
+    follow.deleteOne()
+    await c.save()
+
+    res.json({ message: 'Follow-up deleted' })
+  } catch (error) {
+    res.status(500).json({ message: error.message })
+  }
+})
+
+router.patch('/:caseId/status/start', auth(['dermatologist']), checkBlock, async (req, res) => {
+  try {
+    const caseId = String(req.params.caseId || '').trim()
+    if (!caseId || !mongoose.Types.ObjectId.isValid(caseId)) {
+      return res.status(400).json({ message: 'Invalid case id' })
+    }
+
+    const c = await MedicalCase.findById(caseId)
+    if (!c) return res.status(404).json({ message: 'Case not found' })
+    if (String(c.doctor) !== String(req.user.id)) {
+      return res.status(403).json({ message: 'Not authorized for this case' })
+    }
+    if (c.isCancelledByPatient) {
+      return res.status(400).json({ message: 'Case was cancelled by patient' })
+    }
+    if (c.doctorReviewStatus !== 'accepted') {
+      return res.status(400).json({ message: 'Only accepted cases can be started' })
+    }
+    const today = startOfLocalDay(new Date())
+    const appointmentDay = startOfLocalDay(new Date(c.appointmentDate))
+    if (appointmentDay.getTime() !== today.getTime()) {
+      return res.status(400).json({ message: 'Case can only be started on the appointment date' })
+    }
+
+    c.caseStatus = 'started'
+    if (c.closure) {
+      c.closure.reason = ''
+      c.closure.note = ''
+      c.closure.closedAt = null
+      c.closure.closedBy = null
+    }
+    await c.save()
+    res.json({ message: 'Case started', caseStatus: c.caseStatus })
+  } catch (error) {
+    res.status(500).json({ message: error.message })
+  }
+})
+
+router.patch('/:caseId/status/close', auth(['dermatologist']), checkBlock, async (req, res) => {
+  try {
+    const { reason = '', note = '' } = req.body || {}
+    const allowedReasons = ['no_show', 'treatment_completed', 'other']
+    if (!allowedReasons.includes(String(reason))) {
+      return res.status(400).json({ message: 'A valid closure reason is required' })
+    }
+    if (String(reason) === 'other' && !String(note || '').trim()) {
+      return res.status(400).json({ message: 'Please provide a note for "Other" closure reason' })
+    }
+
+    const caseId = String(req.params.caseId || '').trim()
+    if (!caseId || !mongoose.Types.ObjectId.isValid(caseId)) {
+      return res.status(400).json({ message: 'Invalid case id' })
+    }
+
+    const c = await MedicalCase.findById(caseId)
+    if (!c) return res.status(404).json({ message: 'Case not found' })
+    if (String(c.doctor) !== String(req.user.id)) {
+      return res.status(403).json({ message: 'Not authorized for this case' })
+    }
+
+    if ((c.followUps || []).length > 0) {
+      return res.status(400).json({ message: 'Cannot close case while follow-up appointments exist' })
+    }
+
+    const today = startOfLocalDay(new Date())
+    const appointmentDay = startOfLocalDay(new Date(c.appointmentDate))
+    if (appointmentDay > today) {
+      return res.status(400).json({ message: 'Case can be closed on or after the appointment date' })
+    }
+
+    c.caseStatus = 'closed'
+    c.closure = {
+      reason: String(reason),
+      note: String(note || '').trim(),
+      closedAt: new Date(),
+      closedBy: req.user.id,
+    }
+    await c.save()
+
+    const reasonLabelMap = {
+      no_show: 'Patient did not show up',
+      treatment_completed: 'Treatment completed',
+      other: 'Other',
+    }
+    const reasonLabel = reasonLabelMap[String(reason)] || 'Case closed'
+
+    try {
+      await notifyUser(c.patient, {
+        title: 'Case closed',
+        message: `Your dermatologist has closed your case. Reason: ${reasonLabel}${String(note || '').trim() ? ` (${String(note || '').trim()})` : ''}`,
+        link: '/patient/treatment',
+        type: 'case_closed',
+      })
+    } catch (e) {
+      console.error('notify case closed:', e)
+    }
+
+    res.json({ message: 'Case closed', caseStatus: c.caseStatus })
+  } catch (error) {
+    res.status(500).json({ message: error.message })
+  }
+})
+
 router.patch('/:caseId/progress', auth(['dermatologist']), checkBlock, async (req, res) => {
   try {
     const { progress } = req.body
@@ -576,7 +873,7 @@ router.patch('/:caseId/progress', auth(['dermatologist']), checkBlock, async (re
 
 router.put('/:caseId/treatment-plan', auth(['dermatologist']), checkBlock, async (req, res) => {
   try {
-    const { medications = [], lifestyle = [], notes = '', progress } = req.body || {}
+    const { name = '', medications = [], lifestyle = [], notes = '', progress } = req.body || {}
 
     const c = await MedicalCase.findById(req.params.caseId)
     if (!c) return res.status(404).json({ message: 'Case not found' })
@@ -592,11 +889,14 @@ router.put('/:caseId/treatment-plan', auth(['dermatologist']), checkBlock, async
     }
 
     c.treatmentPlan = {
+      name: String(name || '').trim(),
       medications: meds
         .filter((m) => m && m.name)
         .map((m) => ({
           name: String(m.name),
           dosage: String(m.dosage || ''),
+          timesPerDay: Math.max(1, parseInt(m.timesPerDay, 10) || 1),
+          durationDays: Math.max(0, parseInt(m.durationDays, 10) || 0),
           duration: String(m.duration || ''),
         })),
       lifestyle: life.map(String),
@@ -647,7 +947,20 @@ async function patchDoctorReview(req, res) {
     if (c.isCancelledByPatient) {
       return res.status(400).json({ message: 'Case was cancelled by the patient' })
     }
-    if (c.doctorReviewStatus !== 'pending') {
+    const currentStatus = c.doctorReviewStatus || 'pending'
+    const acceptedAtMs = c.doctorAcceptedAt
+      ? new Date(c.doctorAcceptedAt).getTime()
+      : new Date(c.updatedAt).getTime()
+    const canDeclineAcceptedWithinWindow =
+      currentStatus === 'accepted' &&
+      decision === 'rejected' &&
+      !Number.isNaN(acceptedAtMs) &&
+      (Date.now() - acceptedAtMs) <= 24 * 60 * 60 * 1000
+
+    if (currentStatus !== 'pending' && !canDeclineAcceptedWithinWindow) {
+      if (currentStatus === 'accepted' && decision === 'rejected') {
+        return res.status(400).json({ message: 'You can decline an accepted case only within 24 hours of accepting it' })
+      }
       return res.status(400).json({ message: 'Case already reviewed' })
     }
 
@@ -656,10 +969,12 @@ async function patchDoctorReview(req, res) {
       c.doctorTomorrowReminderAptYmd = ''
       const text = typeof comment === 'string' ? comment.trim().slice(0, 1000) : ''
       c.doctorRejectionComment = text
+      c.doctorAcceptedAt = null
     } else {
       c.caseStatus = 'submitted'
       c.doctorRejectionComment = ''
       c.doctorTomorrowReminderAptYmd = ''
+      c.doctorAcceptedAt = new Date()
     }
 
     c.doctorReviewStatus = decision
@@ -680,7 +995,10 @@ async function patchDoctorReview(req, res) {
         console.error('notify patient review:', e)
       }
     } else {
-      let msg = `Dr. ${dname} declined your request. Your case is saved as a draft in My cases — you can send it to another doctor without redoing screenings.`
+      const wasAcceptedBefore = currentStatus === 'accepted'
+      let msg = wasAcceptedBefore
+        ? `Dr. ${dname} declined your case within 24 hours of accepting it. Your case is saved as a draft in My cases — you can send it to another doctor without redoing screenings.`
+        : `Dr. ${dname} declined your request. Your case is saved as a draft in My cases — you can send it to another doctor without redoing screenings.`
       if (c.doctorRejectionComment) {
         msg += ` Reason: ${c.doctorRejectionComment}`
       }

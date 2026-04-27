@@ -59,6 +59,8 @@ const treatmentMedication = new mongoose.Schema(
   {
     name: { type: String, required: true },
     dosage: { type: String, default: '' },
+    timesPerDay: { type: Number, default: 1, min: 1 },
+    durationDays: { type: Number, default: 0, min: 0 },
     duration: { type: String, default: '' },
   },
   { _id: false }
@@ -84,6 +86,7 @@ const caseSchema = new mongoose.Schema(
       enum: ['pending', 'accepted', 'rejected'],
       default: 'pending',
     },
+    doctorAcceptedAt: { type: Date, default: null },
     isCancelledByPatient: { type: Boolean, default: false },
 
     /** Optional note from dermatologist when declining (patient sees in notification + My cases) */
@@ -98,6 +101,7 @@ const caseSchema = new mongoose.Schema(
     followUps: { type: [followUpEntry], default: [] },
 
     treatmentPlan: {
+      name: { type: String, default: '' },
       medications: { type: [treatmentMedication], default: [] },
       lifestyle: { type: [String], default: [] },
       notes: { type: String, default: '' },
@@ -107,6 +111,12 @@ const caseSchema = new mongoose.Schema(
 
     /** Treatment progress percentage (0-100) */
     progress: { type: Number, default: 0, min: 0, max: 100 },
+    closure: {
+      reason: { type: String, enum: ['', 'no_show', 'treatment_completed', 'other'], default: '' },
+      note: { type: String, default: '' },
+      closedAt: { type: Date, default: null },
+      closedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    },
     processedSessions: { type: [String], default: [] },
   },
   { timestamps: true }

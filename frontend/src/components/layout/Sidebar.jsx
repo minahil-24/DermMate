@@ -64,8 +64,8 @@ const Sidebar = () => {
   const dermatologistLinks = [
     { to: '/dashboard/dermatologist', icon: LayoutDashboard, label: 'Dashboard' },
     { to: '/dermatologist/certification', icon: FileText, label: 'Certification' },
-    { to: '/dermatologist/appointments', icon: Calendar, label: 'Appointments' },
-    { to: '/dermatologist/cases', icon: Briefcase, label: 'Patient Cases' },
+    { to: '/dermatologist/cases', icon: Calendar, label: 'Appointments' },
+    { to: '/dermatologist/appointments', icon: Briefcase, label: 'Patient Cases' },
     { to: '/dermatologist/fees', icon: Wallet, label: 'Fees' },
     { to: '/dermatologist/payments', icon: FileText, label: 'System Billing' },
     { to: '/dermatologist/notifications', icon: Bell, label: 'Notifications' },

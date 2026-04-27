@@ -447,10 +447,16 @@ const TreatmentDashboard = () => {
             {/* ─── Treatment Plan ─── */}
             {activeTab === 'Treatment Plan' && (
               <div className="space-y-6">
-                {!tp.updatedAt && (tp.medications || []).length === 0 && !(tp.notes) ? (
+                {!tp.updatedAt && !(tp.name) && (tp.medications || []).length === 0 && !(tp.notes) ? (
                   <Card className="p-8 text-center text-gray-500">Your dermatologist hasn't created a treatment plan yet.</Card>
                 ) : (
                   <>
+                    {tp.name && (
+                      <Card className="p-4 bg-emerald-50 border border-emerald-200">
+                        <p className="text-xs text-emerald-700 font-semibold uppercase tracking-wide">Plan Name</p>
+                        <p className="text-lg font-bold text-emerald-900 mt-1">{tp.name}</p>
+                      </Card>
+                    )}
                     {/* Medications */}
                     <div>
                       <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
@@ -464,7 +470,10 @@ const TreatmentDashboard = () => {
                             <Card key={idx} className="p-4 shadow-sm border-l-4 border-rose-400">
                               <p className="font-semibold text-gray-900">{med.name}</p>
                               <p className="text-sm text-gray-600">
-                                {med.dosage}{med.duration ? ` · ${med.duration}` : ''}
+                                {med.dosage}
+                                {med.timesPerDay ? ` · ${med.timesPerDay} time${med.timesPerDay > 1 ? 's' : ''}/day` : ''}
+                                {med.durationDays ? ` · ${med.durationDays} day${Number(med.durationDays) === 1 ? '' : 's'}` : ''}
+                                {med.duration ? ` · ${med.duration}` : ''}
                               </p>
                             </Card>
                           ))}

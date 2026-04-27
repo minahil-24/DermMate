@@ -34,16 +34,20 @@ export default function DermatologistNearbyMap({
   apiUrl,
   patientLat,
   patientLng,
+  mapCenterLat,
+  mapCenterLng,
   radiusKm,
   doctors,
   draftCaseId,
 }) {
   const navigate = useNavigate()
+  const centerLat = Number.isFinite(mapCenterLat) ? mapCenterLat : patientLat
+  const centerLng = Number.isFinite(mapCenterLng) ? mapCenterLng : patientLng
 
   return (
     <div className="rounded-2xl overflow-hidden border border-slate-200 h-[min(70vh,520px)] min-h-[280px] w-full bg-slate-50">
       <MapContainer
-        center={[patientLat, patientLng]}
+        center={[centerLat, centerLng]}
         zoom={12}
         className="h-full w-full z-0"
         scrollWheelZoom
@@ -53,7 +57,7 @@ export default function DermatologistNearbyMap({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <Circle
-          center={[patientLat, patientLng]}
+          center={[centerLat, centerLng]}
           radius={radiusKm * 1000}
           pathOptions={{
             color: '#10b981',
@@ -62,6 +66,7 @@ export default function DermatologistNearbyMap({
             weight: 2,
           }}
         />
+        <Marker position={[centerLat, centerLng]} />
         <Marker position={[patientLat, patientLng]} />
         <FitBounds doctors={doctors} patientLat={patientLat} patientLng={patientLng} />
         {(doctors || []).map((d) => {
@@ -76,7 +81,11 @@ export default function DermatologistNearbyMap({
                     {d.clinicAddress || d.location || d.city || '—'}
                   </p>
                   <p className="text-xs font-semibold text-emerald-700 mt-2">
-                    {d.distanceKm != null ? `${d.distanceKm} km away` : ''}
+                    {d.patientDistanceKm != null
+                      ? `${d.patientDistanceKm} km from your location`
+                      : d.distanceKm != null
+                        ? `${d.distanceKm} km away`
+                        : ''}
                   </p>
                   <button
                     type="button"

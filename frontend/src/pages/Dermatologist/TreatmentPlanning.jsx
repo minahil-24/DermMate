@@ -44,7 +44,7 @@ const TreatmentPlanning = () => {
       .filter((c) => {
         const tp = c.treatmentPlan
         if (!tp) return false
-        return (tp.medications?.length > 0) || (tp.lifestyle?.length > 0) || tp.notes
+        return !!tp.name || (tp.medications?.length > 0) || (tp.lifestyle?.length > 0) || tp.notes
       })
       .sort((a, b) => {
         const aDate = a.treatmentPlan?.updatedAt || a.updatedAt
@@ -60,7 +60,7 @@ const TreatmentPlanning = () => {
       .filter((c) => {
         const tp = c.treatmentPlan
         if (!tp) return true
-        return (tp.medications?.length === 0) && (tp.lifestyle?.length === 0) && !tp.notes
+        return !tp.name && (tp.medications?.length === 0) && (tp.lifestyle?.length === 0) && !tp.notes
       })
   }, [cases])
 
@@ -117,6 +117,13 @@ const TreatmentPlanning = () => {
                     </button>
                   </div>
 
+                  {tp.name && (
+                    <div className="mb-4 p-3 bg-emerald-50 border border-emerald-100 rounded-lg">
+                      <p className="text-xs text-emerald-700 font-semibold uppercase tracking-wide">Plan Name</p>
+                      <p className="text-sm font-bold text-emerald-900 mt-1">{tp.name}</p>
+                    </div>
+                  )}
+
                   {/* Medications */}
                   {(tp.medications || []).length > 0 && (
                     <div className="mb-4">
@@ -127,7 +134,12 @@ const TreatmentPlanning = () => {
                         {tp.medications.map((med, midx) => (
                           <div key={midx} className="p-3 bg-gray-50 rounded-lg border border-gray-100">
                             <p className="font-medium text-gray-900 text-sm">{med.name}</p>
-                            <p className="text-xs text-gray-500">{med.dosage}{med.duration ? ` · ${med.duration}` : ''}</p>
+                            <p className="text-xs text-gray-500">
+                              {med.dosage}
+                              {med.timesPerDay ? ` · ${med.timesPerDay} time${med.timesPerDay > 1 ? 's' : ''}/day` : ''}
+                              {med.durationDays ? ` · ${med.durationDays} day${Number(med.durationDays) === 1 ? '' : 's'}` : ''}
+                              {med.duration ? ` · ${med.duration}` : ''}
+                            </p>
                           </div>
                         ))}
                       </div>

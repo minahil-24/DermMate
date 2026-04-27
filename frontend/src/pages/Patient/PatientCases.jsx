@@ -9,6 +9,7 @@ import Breadcrumbs from '../../components/common/Breadcrumbs'
 import { useAuthStore } from '../../store/authStore'
 import { useToastStore } from '../../store/toastStore'
 import { formatDate, generateChallanPDF } from '../../utils/helpers'
+import { loadBooking, mergeBooking } from '../../utils/bookingFlow'
 
 const PatientCases = () => {
   const navigate = useNavigate()
@@ -50,6 +51,12 @@ const PatientCases = () => {
     if (c.caseStatus === 'draft') {
       return { text: 'Draft', cls: 'bg-amber-50 text-amber-800 border border-amber-200' }
     }
+    if (c.caseStatus === 'started') {
+      return { text: 'Started', cls: 'bg-emerald-50 text-emerald-700 border border-emerald-200' }
+    }
+    if (c.caseStatus === 'closed') {
+      return { text: 'Closed', cls: 'bg-gray-100 text-gray-700 border border-gray-200' }
+    }
     return { text: 'Submitted', cls: 'bg-emerald-50 text-emerald-600' }
   }
 
@@ -80,6 +87,28 @@ const PatientCases = () => {
         title: 'Payment Error',
         message: e.response?.data?.message || e.message || 'Payment initiation failed',
       });
+    }
+  }
+
+  const handleDeleteDraft = async (caseId) => {
+    if (!caseId) return
+    if (!window.confirm('Delete this draft case permanently?')) return
+    try {
+      await axios.delete(`${apiUrl}/api/cases/draft/${caseId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const booking = loadBooking()
+      if (booking?.draftCaseId === caseId) {
+        mergeBooking({ draftCaseId: null, complaintType: null })
+      }
+      setCases((prev) => prev.filter((c) => c._id !== caseId))
+      addToast({ type: 'success', title: 'Draft Deleted', message: 'The draft case has been removed.' })
+    } catch (e) {
+      addToast({
+        type: 'error',
+        title: 'Delete Failed',
+        message: e.response?.data?.message || e.message || 'Could not delete draft case',
+      })
     }
   }
 
@@ -133,6 +162,19 @@ const PatientCases = () => {
                       {st.text}
                     </span>
                   </div>
+                  {caseItem.caseStatus === 'closed' && caseItem.closure?.reason && (
+                    <div className="mb-4 p-3 rounded-xl bg-gray-50 border border-gray-200 text-sm text-gray-700">
+                      <p className="font-semibold text-gray-900">Closure reason</p>
+                      <p className="mt-1">
+                        {caseItem.closure.reason === 'no_show'
+                          ? 'Patient did not show up'
+                          : caseItem.closure.reason === 'treatment_completed'
+                            ? 'Treatment completed'
+                            : 'Other'}
+                        {caseItem.closure.note ? `: ${caseItem.closure.note}` : ''}
+                      </p>
+                    </div>
+                  )}
 
                   <div className="mb-8">
                     <h3 className="text-2xl font-bold text-slate-900 group-hover:text-emerald-600 transition-colors">
@@ -211,15 +253,24 @@ const PatientCases = () => {
                   </div>
 
                   {isDraft && (
-                    <Button
-                      className="w-full rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold gap-2"
-                      onClick={() =>
-                        navigate('/patient/dermatologists', { state: { draftCaseId: caseItem._id } })
-                      }
-                    >
-                      <FileEdit className="w-4 h-4" />
-                      Send to another doctor
-                    </Button>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <Button
+                        className="w-full rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold gap-2"
+                        onClick={() =>
+                          navigate('/patient/dermatologists', { state: { draftCaseId: caseItem._id } })
+                        }
+                      >
+                        <FileEdit className="w-4 h-4" />
+                        Send to another doctor
+                      </Button>
+                      <Button
+                        variant="danger"
+                        className="w-full rounded-xl font-bold gap-2"
+                        onClick={() => handleDeleteDraft(caseItem._id)}
+                      >
+                        Delete Draft
+                      </Button>
+                    </div>
                   )}
                   {needsPayment(caseItem) && (
                     <Button

@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet'
 import axios from 'axios'
+import { LocateFixed } from 'lucide-react'
 import 'leaflet/dist/leaflet.css'
 import '../../utils/leafletIconFix'
 
@@ -28,6 +29,7 @@ export default function ClinicLocationPicker({
 }) {
   const [searchQ, setSearchQ] = useState('')
   const [suggestions, setSuggestions] = useState([])
+  const [locating, setLocating] = useState(false)
   const [markerPosition, setMarkerPosition] = useState(() =>
     Number.isFinite(clinicLatitude) && Number.isFinite(clinicLongitude)
       ? [clinicLatitude, clinicLongitude]
@@ -94,6 +96,23 @@ export default function ClinicLocationPicker({
     })
   }
 
+  const useCurrentLocation = () => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return
+    setLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude
+        const lng = pos.coords.longitude
+        setMarkerPosition([lat, lng])
+        reverseGeocode(lat, lng).finally(() => setLocating(false))
+      },
+      () => {
+        setLocating(false)
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
+    )
+  }
+
   return (
     <div className="space-y-3">
       <p className="text-sm text-gray-600">
@@ -102,7 +121,18 @@ export default function ClinicLocationPicker({
 
       {!disabled && (
         <div className="relative z-[500]">
-          <label className="text-xs font-semibold text-gray-700 block mb-1">Search address</label>
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <label className="text-xs font-semibold text-gray-700 block">Search address</label>
+            <button
+              type="button"
+              onClick={useCurrentLocation}
+              disabled={locating}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50"
+            >
+              <LocateFixed className={`w-3.5 h-3.5 ${locating ? 'animate-spin' : ''}`} />
+              {locating ? 'Locating…' : 'Use my location'}
+            </button>
+          </div>
           <input
             type="text"
             value={searchQ}

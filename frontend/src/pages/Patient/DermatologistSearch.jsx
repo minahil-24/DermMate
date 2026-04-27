@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Search, MapPin, Star, GraduationCap, ArrowRight, Loader2, Filter, CheckCircle2, Map, LayoutGrid } from 'lucide-react'
+import { Search, MapPin, Star, GraduationCap, ArrowRight, Loader2, Filter, CheckCircle2, Map, LayoutGrid, LocateFixed } from 'lucide-react'
 import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
 import Breadcrumbs from '../../components/common/Breadcrumbs'
@@ -11,8 +11,6 @@ import { useAuthStore } from '../../store/authStore'
 import { useToastStore } from '../../store/toastStore'
 import { fetchCanBookDoctor } from '../../utils/canBookDoctor'
 import DermatologistNearbyMap, { LAHORE } from '../../components/maps/DermatologistNearbyMap'
-
-const cityFilters = ['All', 'Karachi', 'Lahore', 'Islamabad']
 
 const DermatologistSearch = () => {
     const navigate = useNavigate()
@@ -34,11 +32,29 @@ const DermatologistSearch = () => {
     const [viewMode, setViewMode] = useState('list')
     const [patientLat, setPatientLat] = useState(LAHORE[0])
     const [patientLng, setPatientLng] = useState(LAHORE[1])
+    const [mapCenterLat, setMapCenterLat] = useState(LAHORE[0])
+    const [mapCenterLng, setMapCenterLng] = useState(LAHORE[1])
     const [geoDenied, setGeoDenied] = useState(false)
     const [geoAttempted, setGeoAttempted] = useState(false)
+    const [geoReady, setGeoReady] = useState(false)
     const [radiusKm, setRadiusKm] = useState(5)
     const [mapDoctors, setMapDoctors] = useState([])
     const [mapLoading, setMapLoading] = useState(false)
+    const [areaQuery, setAreaQuery] = useState('')
+    const [areaLoading, setAreaLoading] = useState(false)
+    const haversineKm = (lat1, lon1, lat2, lon2) => {
+        const toRad = (v) => (v * Math.PI) / 180
+        const R = 6371
+        const dLat = toRad(lat2 - lat1)
+        const dLon = toRad(lon2 - lon1)
+        const a =
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2)
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+        return R * c
+    }
+
 
     const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000'
 
@@ -59,34 +75,51 @@ const DermatologistSearch = () => {
         fetchDermatologists()
     }, [])
 
-    useEffect(() => {
-        if (viewMode !== 'map' || geoAttempted) return
-        setGeoAttempted(true)
+    const requestPatientLocation = () => {
         if (typeof navigator === 'undefined' || !navigator.geolocation) {
             setGeoDenied(true)
+            setGeoReady(false)
             return
         }
+        setGeoAttempted(true)
         navigator.geolocation.getCurrentPosition(
             (pos) => {
                 setPatientLat(pos.coords.latitude)
                 setPatientLng(pos.coords.longitude)
+                setMapCenterLat(pos.coords.latitude)
+                setMapCenterLng(pos.coords.longitude)
                 setGeoDenied(false)
+                setGeoReady(true)
+                addToast({ type: 'success', title: 'Location enabled', message: 'Showing exact distance from your location.' })
             },
-            () => setGeoDenied(true),
+            () => {
+                setGeoDenied(true)
+                setGeoReady(false)
+                addToast({
+                    type: 'error',
+                    title: 'Location required',
+                    message: 'Please allow location access to find doctors by exact distance on map.',
+                })
+            },
             { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
         )
+    }
+
+    useEffect(() => {
+        if (viewMode !== 'map' || geoAttempted) return
+        requestPatientLocation()
     }, [viewMode, geoAttempted])
 
     useEffect(() => {
-        if (viewMode !== 'map') return
+        if (viewMode !== 'map' || !geoReady) return
         const ac = new AbortController()
         const run = async () => {
             setMapLoading(true)
             try {
                 const res = await axios.get(`${apiUrl}/api/clinics/nearby`, {
                     params: {
-                        lat: patientLat,
-                        lng: patientLng,
+                        lat: mapCenterLat,
+                        lng: mapCenterLng,
                         radius: radiusKm,
                         search: searchTerm,
                         city: filters.city,
@@ -95,7 +128,20 @@ const DermatologistSearch = () => {
                     },
                     signal: ac.signal,
                 })
-                setMapDoctors(Array.isArray(res.data) ? res.data : [])
+                const docs = Array.isArray(res.data) ? res.data : []
+                const withPatientDistance = docs.map((d) => {
+                    if (
+                        Number.isFinite(patientLat) &&
+                        Number.isFinite(patientLng) &&
+                        Number.isFinite(d.clinicLatitude) &&
+                        Number.isFinite(d.clinicLongitude)
+                    ) {
+                        const km = haversineKm(patientLat, patientLng, d.clinicLatitude, d.clinicLongitude)
+                        return { ...d, patientDistanceKm: Math.round(km * 100) / 100 }
+                    }
+                    return d
+                })
+                setMapDoctors(withPatientDistance)
             } catch (e) {
                 if (!ac.signal.aborted) setMapDoctors([])
             } finally {
@@ -104,7 +150,7 @@ const DermatologistSearch = () => {
         }
         run()
         return () => ac.abort()
-    }, [viewMode, patientLat, patientLng, radiusKm, searchTerm, filters.city, filters.specialty, filters.keyword, apiUrl])
+    }, [viewMode, geoReady, patientLat, patientLng, mapCenterLat, mapCenterLng, radiusKm, searchTerm, filters.city, filters.specialty, filters.keyword, apiUrl])
 
     const filteredDoctors = dermatologists.filter((doctor) => {
         const name = (doctor.name || '').toLowerCase()
@@ -112,7 +158,10 @@ const DermatologistSearch = () => {
         const matchesSearch =
             !searchTerm ||
             name.includes(st) ||
-            (doctor.clinicName || '').toLowerCase().includes(st)
+            (doctor.clinicName || '').toLowerCase().includes(st) ||
+            (doctor.location || '').toLowerCase().includes(st) ||
+            (doctor.city || '').toLowerCase().includes(st) ||
+            (doctor.clinicAddress || '').toLowerCase().includes(st)
         const loc = (doctor.location || '').toLowerCase()
         const city = (doctor.city || '').toLowerCase()
         const matchesCity =
@@ -130,10 +179,53 @@ const DermatologistSearch = () => {
     })
 
     const cardDoctors = viewMode === 'list' ? filteredDoctors : mapDoctors
+    const locationTags = [
+        'All',
+        ...Array.from(
+            new Set(
+                (dermatologists || [])
+                    .map((d) => String(d.city || d.location || '').trim())
+                    .filter(Boolean)
+            )
+        ).sort((a, b) => a.localeCompare(b)),
+    ]
 
     const getAvatar = (doc) => {
         if (doc.profilePhoto) return `${apiUrl}/${doc.profilePhoto.replace(/\\/g, '/')}`
         return doc.gender === 'female' ? '/imgs/default-female.png' : '/imgs/default-male.png'
+    }
+
+    const searchAreaOnMap = async () => {
+        const q = areaQuery.trim()
+        if (!q) return
+        try {
+            setAreaLoading(true)
+            const res = await axios.get(`${apiUrl}/api/clinics/geocode/search`, { params: { q } })
+            const first = Array.isArray(res.data) ? res.data[0] : null
+            if (!first || typeof first.lat !== 'number' || typeof first.lon !== 'number') {
+                addToast({
+                    type: 'error',
+                    title: 'Area not found',
+                    message: 'Could not find that area on map. Try a nearby city/area name.',
+                })
+                return
+            }
+            setMapCenterLat(first.lat)
+            setMapCenterLng(first.lon)
+            addToast({
+                type: 'success',
+                title: 'Map updated',
+                message: `Showing clinics near ${first.display_name || q}. Distances are from your live location.`,
+            })
+        } catch (e) {
+            addToast({
+                type: 'error',
+                title: 'Search unavailable',
+                message: e.response?.data?.message || 'Could not search this area right now.',
+            })
+        } finally {
+            setAreaLoading(false)
+        }
     }
 
     return (
@@ -254,7 +346,7 @@ const DermatologistSearch = () => {
             )}
 
             <div className="flex gap-3 mb-10 overflow-x-auto pb-2 scrollbar-none">
-                {cityFilters.map((city) => (
+                {locationTags.map((city) => (
                     <button
                         key={city}
                         onClick={() => setFilters({ ...filters, city: city === 'All' ? '' : city })}
@@ -271,11 +363,47 @@ const DermatologistSearch = () => {
 
             {viewMode === 'map' && (
                 <div className="mb-8 space-y-4">
-                    {geoDenied && (
-                        <div className="text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
-                            <span className="font-semibold">Location unavailable.</span> Map centered on Lahore — increase radius or use list view to see all doctors.
+                    {!geoReady && (
+                        <div className="text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                            <span>
+                                <span className="font-semibold">Allow your location</span> to find doctors near you and show exact clinic distance.
+                            </span>
+                            <Button onClick={requestPatientLocation} className="rounded-xl">
+                                <LocateFixed className="w-4 h-4 mr-2" />
+                                Enable Location
+                            </Button>
                         </div>
                     )}
+                    {geoDenied && !geoReady && (
+                        <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+                            Location access is currently blocked. Please allow it in your browser settings and try again.
+                        </div>
+                    )}
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 bg-white rounded-2xl border border-slate-100 p-4 shadow-sm">
+                        <div className="flex-1 flex items-center gap-2">
+                            <div className="relative flex-1">
+                                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                                <input
+                                    type="text"
+                                    value={areaQuery}
+                                    onChange={(e) => setAreaQuery(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') searchAreaOnMap()
+                                    }}
+                                    placeholder="Search area (e.g. Gulberg Lahore)"
+                                    className="w-full pl-9 pr-3 py-2.5 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500"
+                                />
+                            </div>
+                            <Button
+                                onClick={searchAreaOnMap}
+                                disabled={areaLoading || !areaQuery.trim()}
+                                className="rounded-xl px-4 py-2.5 h-auto whitespace-nowrap"
+                            >
+                                {areaLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <LocateFixed className="w-4 h-4" />}
+                                <span className="ml-2">Find Area</span>
+                            </Button>
+                        </div>
+                    </div>
                     <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 bg-white rounded-2xl border border-slate-100 p-4 shadow-sm">
                         <label className="text-xs font-black text-slate-600 uppercase tracking-wider shrink-0">
                             Radius: {radiusKm} km
@@ -297,19 +425,22 @@ const DermatologistSearch = () => {
                             </div>
                         )}
                         <DermatologistNearbyMap
+                            apiUrl={apiUrl}
                             patientLat={patientLat}
                             patientLng={patientLng}
+                            mapCenterLat={mapCenterLat}
+                            mapCenterLng={mapCenterLng}
                             radiusKm={radiusKm}
                             doctors={mapDoctors}
                             draftCaseId={draftCaseId}
                         />
                     </div>
-                    {!mapLoading && mapDoctors.length === 0 && (
+                    {!mapLoading && geoReady && mapDoctors.length === 0 && (
                         <Card className="text-center py-14 rounded-3xl border-2 border-dashed border-slate-100">
                             <MapPin className="w-12 h-12 text-slate-200 mx-auto mb-3" />
                             <p className="text-slate-900 font-black text-lg">No clinics with a map pin in this radius</p>
                             <p className="text-slate-500 text-sm mt-2 max-w-md mx-auto">
-                                Doctors must set a clinic location on their profile. Try a larger radius or switch to list view.
+                                Doctors must set a clinic location on their profile. Try a larger radius or another area.
                             </p>
                         </Card>
                     )}
@@ -367,7 +498,7 @@ const DermatologistSearch = () => {
                                 <div className="space-y-3 mb-8 flex-grow">
                                     {viewMode === 'map' && doctor.distanceKm != null && (
                                         <p className="text-[10px] font-black uppercase text-emerald-600 tracking-wide">
-                                            {doctor.distanceKm} km from search center
+                                            {doctor.patientDistanceKm != null ? `${doctor.patientDistanceKm} km from your location` : `${doctor.distanceKm} km from map center`}
                                         </p>
                                     )}
                                     <div className="flex items-center text-xs font-bold text-slate-500 gap-2">

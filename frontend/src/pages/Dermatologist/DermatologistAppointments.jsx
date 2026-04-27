@@ -105,6 +105,14 @@ const DermatologistAppointments = () => {
   const canDecide = (c) =>
     !c.isCancelledByPatient && (c.doctorReviewStatus === 'pending' || !c.doctorReviewStatus)
 
+  const canDeclineAcceptedWithin24h = (c) => {
+    if (!c || c.isCancelledByPatient) return false
+    if (c.doctorReviewStatus !== 'accepted' || !c.doctorAcceptedAt) return false
+    const acceptedAt = new Date(c.doctorAcceptedAt).getTime()
+    if (Number.isNaN(acceptedAt)) return false
+    return Date.now() - acceptedAt <= 24 * 60 * 60 * 1000
+  }
+
   const handleReview = async (decision) => {
     const cid = caseIdFrom(selectedCase)
     if (!cid) return
@@ -145,9 +153,9 @@ const DermatologistAppointments = () => {
 
   return (
     <div>
-      <Breadcrumbs items={[{ label: 'Appointment Requests' }]} />
+      <Breadcrumbs items={[{ label: 'Patient Cases' }]} />
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Pre-appointment cases</h1>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Pre-appointment requests</h1>
         <p className="text-gray-600">
           Review submitted questionnaires, images, and schedule. Accept or decline each request; the patient is
           notified automatically.
@@ -364,6 +372,12 @@ const DermatologistAppointments = () => {
               </div>
             )}
 
+            {canDeclineAcceptedWithin24h(selectedCase) && (
+              <div className="mt-4 p-3 rounded-lg border border-amber-200 bg-amber-50 text-xs text-amber-900">
+                This case is accepted. You can still decline it within 24 hours of acceptance.
+              </div>
+            )}
+
             <div className="flex flex-wrap justify-end gap-3 mt-6 pt-4 border-t border-gray-100">
               {canDecide(selectedCase) && (
                 <>
@@ -384,6 +398,16 @@ const DermatologistAppointments = () => {
                     Decline
                   </Button>
                 </>
+              )}
+              {!canDecide(selectedCase) && canDeclineAcceptedWithin24h(selectedCase) && (
+                <Button
+                  disabled={actionLoading}
+                  className="flex items-center gap-1 bg-red-600 hover:bg-red-700 text-white rounded-md shadow-md"
+                  onClick={() => handleReview('rejected')}
+                >
+                  {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
+                  Decline (within 24h)
+                </Button>
               )}
               <Button
                 variant="outline"
