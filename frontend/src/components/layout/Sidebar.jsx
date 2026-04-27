@@ -84,7 +84,13 @@ const Sidebar = () => {
 
   ]
 
-  const links = role === 'patient' ? patientLinks : role === 'dermatologist' ? dermatologistLinks : adminLinks
+  const links = role === 'patient' 
+    ? patientLinks 
+    : role === 'dermatologist' 
+      ? dermatologistLinks 
+      : role === 'admin' 
+        ? adminLinks 
+        : []
 
   return (
     <aside className="w-64 bg-gradient-to-b from-emerald-50 to-white min-h-screen p-6 flex flex-col justify-between shadow-lg sticky top-0">

@@ -9,6 +9,7 @@ import RegisterPage from './pages/auth/RegisterPage'
 import VerifyEmail from './pages/auth/VerifyEmail'
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage'
 import ResetPasswordPage from './pages/auth/ResetPasswordPage'
+import Forbidden from './pages/auth/Forbidden'
 import Onboarding from './pages/Onboarding'
 
 
@@ -86,13 +87,14 @@ function App() {
     <Router>
       <Routes>
         {/* Redirect */}
-        <Route path="/" element={<Navigate to={isAuthenticated ? `/dashboard/${role}` : '/login'} replace />} />
+        <Route path="/" element={<Navigate to={isAuthenticated && role ? `/dashboard/${role}` : '/login'} replace />} />
 
         {/* Auth Routes */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
+        <Route path="/forbidden" element={<Forbidden />} />
         <Route path="/onboarding" element={<Onboarding />} />
 
         {/* Dashboard Layout */}
@@ -417,6 +419,12 @@ function App() {
             }
           />
 
+          {/* Admin Redirect */}
+          <Route
+            path="/admin"
+            element={<Navigate to="/dashboard/admin" replace />}
+          />
+
           {/* Admin Routes */}
           <Route
             path="/dashboard/admin"
@@ -517,6 +525,8 @@ function App() {
             path="/system/reports"
             element={<SystemReports />}
           />
+          {/* Catch-all route */}
+          <Route path="*" element={<Navigate to={isAuthenticated && role ? `/dashboard/${role}` : '/login'} replace />} />
         </Route>
       </Routes>
     </Router>

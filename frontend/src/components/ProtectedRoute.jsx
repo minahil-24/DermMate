@@ -9,7 +9,7 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
   }
 
   if (allowedRoles.length > 0 && !allowedRoles.includes(role)) {
-    return <Navigate to={`/dashboard/${role}`} replace />
+    return <Navigate to="/forbidden" replace />
   }
 
   if (isAuthenticated && role !== 'admin' && user && !user.onboardingCompleted) {

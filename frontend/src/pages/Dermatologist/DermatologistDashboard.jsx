@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion'
 import { useEffect, useMemo, useState } from 'react'
-import { Calendar, Users, Clock, TrendingUp, Loader2 } from 'lucide-react'
+import { Calendar, Users, Clock, TrendingUp, Loader2, Star } from 'lucide-react'
 import axios from 'axios'
 import Card from '../../components/ui/Card'
 import Breadcrumbs from '../../components/common/Breadcrumbs'
@@ -14,22 +14,27 @@ const DermatologistDashboard = () => {
   const [loading, setLoading] = useState(true)
   const [cases, setCases] = useState([])
   const [notifications, setNotifications] = useState([])
+  const [doctorProfile, setDoctorProfile] = useState(null)
 
   useEffect(() => {
     const load = async () => {
       if (!token) return
       try {
         setLoading(true)
-        const [casesRes, notifRes] = await Promise.all([
+        const [casesRes, notifRes, profileRes] = await Promise.all([
           axios.get(`${apiUrl}/api/cases/doctor/incoming`, {
             headers: { Authorization: `Bearer ${token}` },
           }),
           axios.get(`${apiUrl}/api/notifications`, {
             headers: { Authorization: `Bearer ${token}` },
           }),
+          axios.get(`${apiUrl}/api/auth/me`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
         ])
         setCases(casesRes.data || [])
         setNotifications(notifRes.data || [])
+        setDoctorProfile(profileRes.data || null)
       } catch {
         setCases([])
         setNotifications([])
@@ -82,8 +87,15 @@ const DermatologistDashboard = () => {
     { label: "Today's Appointments", value: todayAppointments.length, icon: Calendar, color: 'bg-emerald-500' },
     { label: 'Appointment Requests', value: appointmentRequests, icon: Users, color: 'bg-blue-500' },
     { label: 'Active Cases', value: activeCases, icon: Clock, color: 'bg-teal-500' },
-    { label: 'Patient Satisfaction', value: '0/5', icon: TrendingUp, color: 'bg-yellow-500' },
+    { label: 'Patient Satisfaction', value: `${doctorProfile?.averageRating || 0}/5`, icon: Star, color: 'bg-yellow-500' },
   ]
+
+  const recentReviews = useMemo(() => {
+    return (cases || [])
+      .filter(c => c.review && c.review.rating)
+      .sort((a, b) => new Date(b.review.createdAt) - new Date(a.review.createdAt))
+      .slice(0, 5)
+  }, [cases])
 
   return (
     <div>
@@ -101,7 +113,14 @@ const DermatologistDashboard = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-600 mb-1">{stat.label}</p>
-                    <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
+                    <div className="flex items-baseline gap-2">
+                      <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
+                      {stat.label === "Patient Satisfaction" && doctorProfile?.totalReviews > 0 && (
+                        <span className="text-xs text-gray-500 font-medium">
+                          ({doctorProfile.totalReviews} reviews)
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className={`${stat.color} p-3 rounded-lg`}>
                     <Icon className="w-6 h-6 text-white" />
@@ -163,7 +182,38 @@ const DermatologistDashboard = () => {
             </div>
           )}
         </Card>
-
+ 
+        <Card className="lg:col-span-1">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Recent Reviews</h2>
+          {loading ? (
+            <div className="flex justify-center py-10">
+              <Loader2 className="w-10 h-10 animate-spin text-emerald-500" />
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {recentReviews.map((r) => (
+                <div key={r._id} className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex items-center gap-1 text-amber-500">
+                      {[...Array(5)].map((_, i) => (
+                        <Star key={i} size={14} fill={i < r.review.rating ? "currentColor" : "none"} />
+                      ))}
+                    </div>
+                    <span className="text-[10px] text-gray-400 font-bold uppercase">
+                      {new Date(r.review.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <p className="text-xs font-bold text-gray-900 mb-1">{r.patient?.name}</p>
+                  <p className="text-sm text-gray-600 italic">"{r.review.comment || 'No comment provided'}"</p>
+                </div>
+              ))}
+              {recentReviews.length === 0 && (
+                <div className="text-center text-gray-500 py-6">No reviews yet</div>
+              )}
+            </div>
+          )}
+        </Card>
+ 
         <Card className="lg:col-span-1">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Notifications</h2>
           {loading ? (

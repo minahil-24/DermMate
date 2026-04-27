@@ -118,6 +118,11 @@ const caseSchema = new mongoose.Schema(
       closedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     },
     processedSessions: { type: [String], default: [] },
+    review: {
+      rating: { type: Number, min: 1, max: 5, default: null },
+      comment: { type: String, default: '' },
+      createdAt: { type: Date, default: null },
+    },
   },
   { timestamps: true }
 )

@@ -202,11 +202,35 @@ router.patch('/profile', auth(), async (req, res) => {
       'specialty', 'clinicName', 'city', 'bio', 'availability',
     ];
 
-    allow.forEach((key) => {
-      if (req.body[key] !== undefined && req.body[key] !== null) {
-        user[key] = req.body[key];
+    const patientFields = ['name', 'phoneNumber', 'location', 'gender'];
+    const doctorFields = [...patientFields, 'degree', 'specialty', 'clinicName', 'city', 'bio', 'availability'];
+
+    // Validation for empty fields and specific formats
+    for (const key of allow) {
+      if (req.body[key] !== undefined) {
+        // Skip validation for fields that are not relevant to the user's role
+        // This avoids blocking patients because of empty clinicName, etc.
+        const relevantFields = user.role === 'patient' ? patientFields : doctorFields;
+        if (!relevantFields.includes(key)) continue;
+
+        const val = String(req.body[key]).trim();
+        
+        // No field should be empty if provided
+        if (val === '') {
+          return res.status(400).json({ message: `${key.charAt(0).toUpperCase() + key.slice(1)} cannot be empty` });
+        }
+
+        // Phone number validation: +92 followed by 10 digits
+        if (key === 'phoneNumber') {
+          const phoneRegex = /^\+92\d{10}$/;
+          if (!phoneRegex.test(val)) {
+            return res.status(400).json({ message: 'Phone number must be in format +92XXXXXXXXXX (13 characters total)' });
+          }
+        }
+        
+        user[key] = val;
       }
-    });
+    }
 
     if (user.role === 'dermatologist') {
       if (req.body.clinicAddress !== undefined) {

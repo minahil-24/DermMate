@@ -178,16 +178,21 @@ const Onboarding = () => {
             const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
             const fullUrl = `${apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl}/api/auth/profile`;
             
+            // Filter only relevant data to send to backend
+            const payload = { onboardingCompleted: true };
+            if (isPatient) {
+                ['age', 'phoneNumber', 'location', 'gender'].forEach(f => payload[f] = formData[f]);
+            } else {
+                ['phoneNumber', 'location', 'gender', 'experience', 'clinicName', 'specialty'].forEach(f => payload[f] = formData[f]);
+            }
+
             const response = await fetch(fullUrl, {
                 method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
                 },
-                body: JSON.stringify({
-                    ...formData,
-                    onboardingCompleted: true
-                }),
+                body: JSON.stringify(payload),
             });
 
             const data = await response.json();

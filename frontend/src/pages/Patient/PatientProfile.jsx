@@ -96,12 +96,33 @@ const PatientProfile = () => {
             return
         }
 
+        const phoneRegex = /^\+92\d{10}$/
+        const trimmedPhone = String(formData.phoneNumber || '').trim()
+        if (!phoneRegex.test(trimmedPhone)) {
+            addToast({
+                type: 'error',
+                title: 'Invalid Phone Number',
+                message: 'Phone number must be in format +92XXXXXXXXXX (13 characters total)',
+            })
+            return
+        }
+
+        const trimmedLocation = String(formData.location || '').trim()
+        if (!trimmedLocation) {
+            addToast({
+                type: 'error',
+                title: 'Invalid Location',
+                message: 'Location is required',
+            })
+            return
+        }
+
         try {
             setSaving(true)
             const patchBody = {
                 name: trimmedName,
-                phoneNumber: formData.phoneNumber,
-                location: formData.location,
+                phoneNumber: trimmedPhone,
+                location: trimmedLocation,
                 age: ageNumber,
                 gender: genderValue,
             }

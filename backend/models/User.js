@@ -88,6 +88,8 @@ const userSchema = new mongoose.Schema({
   blockedDueToUnpaidFee: { type: Boolean, default: false },
   systemFeePaid: { type: Number, default: 0 },
   processedSessions: { type: [String], default: [] },
+  averageRating: { type: Number, default: 0 },
+  totalReviews: { type: Number, default: 0 },
 
   // Auth Tokens
   verificationToken: String,

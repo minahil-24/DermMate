@@ -1100,4 +1100,65 @@ router.patch('/:caseId/mark-paid', auth(['patient']), async (req, res) => {
   }
 })
 
+/** Submit review and rating for a closed case (patient-only) */
+router.post('/:caseId/review', auth(['patient']), async (req, res) => {
+  try {
+    const { rating, comment } = req.body
+    if (!rating || rating < 1 || rating > 5) {
+      return res.status(400).json({ message: 'A rating between 1 and 5 is required' })
+    }
+
+    const c = await MedicalCase.findById(req.params.caseId)
+    if (!c) return res.status(404).json({ message: 'Case not found' })
+    if (String(c.patient) !== String(req.user.id)) {
+      return res.status(403).json({ message: 'Not authorized for this case' })
+    }
+    if (c.caseStatus !== 'closed') {
+      return res.status(400).json({ message: 'Reviews can only be given for closed cases' })
+    }
+    if (c.review && c.review.rating) {
+      return res.status(400).json({ message: 'You have already reviewed this case' })
+    }
+
+    c.review = {
+      rating: Number(rating),
+      comment: String(comment || '').trim(),
+      createdAt: new Date()
+    }
+    await c.save()
+
+    // Update doctor's aggregate rating
+    const doctor = await User.findById(c.doctor)
+    if (doctor) {
+      const allDoctorCases = await MedicalCase.find({ 
+        doctor: doctor._id, 
+        'review.rating': { $ne: null } 
+      })
+      const totalRatings = allDoctorCases.length
+      const sumRatings = allDoctorCases.reduce((sum, curr) => sum + curr.review.rating, 0)
+      
+      doctor.totalReviews = totalRatings
+      doctor.averageRating = totalRatings > 0 ? Number((sumRatings / totalRatings).toFixed(1)) : 0
+      await doctor.save()
+
+      // Notify doctor
+      try {
+        const patientName = req.user.name || 'A patient'
+        await notifyUser(doctor._id, {
+          title: 'New Review Received',
+          message: `${patientName} gave you a ${rating}-star rating and a review.`,
+          link: '/dermatologist/dashboard',
+          type: 'review_received',
+        })
+      } catch (e) {
+        console.error('Notify review error:', e)
+      }
+    }
+
+    res.json({ message: 'Review submitted successfully', review: c.review })
+  } catch (error) {
+    res.status(500).json({ message: error.message })
+  }
+})
+
 module.exports = router

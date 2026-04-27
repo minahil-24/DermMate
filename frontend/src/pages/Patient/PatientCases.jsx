@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
-import { Calendar, User, Loader2, CreditCard, FileEdit, AlertCircle } from 'lucide-react'
+import { Calendar, User, Loader2, CreditCard, FileEdit, AlertCircle, Star } from 'lucide-react'
 import axios from 'axios'
 import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
@@ -10,6 +10,7 @@ import { useAuthStore } from '../../store/authStore'
 import { useToastStore } from '../../store/toastStore'
 import { formatDate, generateChallanPDF } from '../../utils/helpers'
 import { loadBooking, mergeBooking } from '../../utils/bookingFlow'
+import Modal from '../../components/ui/Modal'
 
 const PatientCases = () => {
   const navigate = useNavigate()
@@ -18,6 +19,12 @@ const PatientCases = () => {
   const [cases, setCases] = useState([])
   const [loading, setLoading] = useState(true)
   const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000'
+  
+  const [reviewModalOpen, setReviewModalOpen] = useState(false)
+  const [selectedCaseForReview, setSelectedCaseForReview] = useState(null)
+  const [rating, setRating] = useState(0)
+  const [comment, setComment] = useState('')
+  const [submittingReview, setSubmittingReview] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -109,6 +116,42 @@ const PatientCases = () => {
         title: 'Delete Failed',
         message: e.response?.data?.message || e.message || 'Could not delete draft case',
       })
+    }
+  }
+
+  const handleOpenReview = (c) => {
+    setSelectedCaseForReview(c)
+    setRating(0)
+    setComment('')
+    setReviewModalOpen(true)
+  }
+
+  const handleSubmitReview = async () => {
+    if (rating === 0) {
+      addToast({ type: 'error', title: 'Rating Required', message: 'Please select a rating' })
+      return
+    }
+    try {
+      setSubmittingReview(true)
+      await axios.post(`${apiUrl}/api/cases/${selectedCaseForReview._id}/review`, 
+        { rating, comment },
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      addToast({ type: 'success', title: 'Review Submitted', message: 'Thank you for your feedback!' })
+      setReviewModalOpen(false)
+      // Refresh cases to update UI (hide button)
+      const res = await axios.get(`${apiUrl}/api/cases/my`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      setCases(res.data || [])
+    } catch (e) {
+      addToast({
+        type: 'error',
+        title: 'Submission Failed',
+        message: e.response?.data?.message || 'Could not submit review',
+      })
+    } finally {
+      setSubmittingReview(false)
     }
   }
 
@@ -280,12 +323,83 @@ const PatientCases = () => {
                       {caseItem.paymentMethod === 'online' ? 'Pay now (Stripe)' : 'Download Challan'}
                     </Button>
                   )}
+
+                  {caseItem.caseStatus === 'closed' && !caseItem.review?.rating && (
+                    <Button
+                      className="w-full mt-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-2"
+                      onClick={() => handleOpenReview(caseItem)}
+                    >
+                      <Star className="w-4 h-4" />
+                      Give Review
+                    </Button>
+                  )}
+
+                  {caseItem.review?.rating && (
+                    <div className="mt-4 flex items-center gap-2 text-sm text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                      <div className="flex items-center text-amber-500">
+                        {[...Array(5)].map((_, i) => (
+                          <Star key={i} size={12} fill={i < caseItem.review.rating ? "currentColor" : "none"} />
+                        ))}
+                      </div>
+                      <span className="font-medium italic">Reviewed</span>
+                    </div>
+                  )}
                 </Card>
               </motion.div>
             )
           })}
         </div>
       )}
+
+      <Modal
+        isOpen={reviewModalOpen}
+        onClose={() => setReviewModalOpen(false)}
+        title="Rate your Experience"
+        size="sm"
+      >
+        <div className="space-y-6">
+          <div className="text-center">
+            <p className="text-slate-500 text-sm mb-4">How was your consultation with Dr. {selectedCaseForReview?.doctor?.name}?</p>
+            <div className="flex justify-center gap-2">
+              {[1, 2, 3, 4, 5].map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setRating(s)}
+                  className={`p-2 rounded-lg transition-all ${
+                    rating >= s ? 'text-amber-500 scale-110' : 'text-slate-300 hover:text-amber-300'
+                  }`}
+                >
+                  <Star size={32} fill={rating >= s ? "currentColor" : "none"} />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-slate-700">Your Review (Optional)</label>
+            <textarea
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              className="w-full p-4 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all resize-none"
+              placeholder="Tell others about your experience..."
+              rows={4}
+            />
+          </div>
+
+          <Button
+            className="w-full h-12 rounded-xl text-lg font-bold"
+            onClick={handleSubmitReview}
+            disabled={submittingReview}
+          >
+            {submittingReview ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                Submitting...
+              </>
+            ) : 'Submit Feedback'}
+          </Button>
+        </div>
+      </Modal>
     </div>
   )
 }

@@ -94,6 +94,15 @@ const DermatologistProfile = () => {
     }
 
     const handleSave = async () => {
+        if (!formData.name || !formData.specialty || !formData.clinicName || !formData.location || !formData.consultationFee || !formData.bio) {
+            addToast({
+                type: 'error',
+                title: 'Missing Fields',
+                message: 'All fields must be filled before saving',
+            })
+            return
+        }
+
         try {
             setSaving(true)
             const patchBody = {
@@ -198,7 +207,7 @@ const DermatologistProfile = () => {
                         <div className="flex items-center gap-3 text-gray-600">
                             <Star className="w-5 h-5" /> <span>{user?.experience || '0'} years experience</span>
                         </div>
-                        
+
                         {!isEditing && (
                             <Button variant="outline" className="w-full mt-4" onClick={() => setIsEditing(true)}>
                                 Edit Profile
@@ -227,28 +236,28 @@ const DermatologistProfile = () => {
                             <div className="space-y-2">
                                 <label className="text-sm font-semibold text-gray-700">Full Name</label>
                                 {isEditing ? (
-                                    <input type="text" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} className="w-full p-2 border rounded-lg" />
+                                    <input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="w-full p-2 border rounded-lg" />
                                 ) : <p className="text-gray-900 py-2 border-b border-transparent">{user?.name}</p>}
                             </div>
 
                             <div className="space-y-2">
                                 <label className="text-sm font-semibold text-gray-700">Specialty</label>
                                 {isEditing ? (
-                                    <input type="text" value={formData.specialty} onChange={(e) => setFormData({...formData, specialty: e.target.value})} className="w-full p-2 border rounded-lg" />
+                                    <input type="text" value={formData.specialty} onChange={(e) => setFormData({ ...formData, specialty: e.target.value })} className="w-full p-2 border rounded-lg" />
                                 ) : <p className="text-gray-900 py-2 border-b border-transparent">{user?.specialty || 'N/A'}</p>}
                             </div>
 
                             <div className="space-y-2 text-sm">
                                 <label className="font-semibold text-gray-700">Clinic Name</label>
                                 {isEditing ? (
-                                    <input type="text" value={formData.clinicName} onChange={(e) => setFormData({...formData, clinicName: e.target.value})} className="w-full p-2 border rounded-lg" />
+                                    <input type="text" value={formData.clinicName} onChange={(e) => setFormData({ ...formData, clinicName: e.target.value })} className="w-full p-2 border rounded-lg" />
                                 ) : <p className="text-gray-900 py-2">{user?.clinicName || 'N/A'}</p>}
                             </div>
 
                             <div className="space-y-2 text-sm">
                                 <label className="font-semibold text-gray-700">Location/Address</label>
                                 {isEditing ? (
-                                    <input type="text" value={formData.location} onChange={(e) => setFormData({...formData, location: e.target.value})} className="w-full p-2 border rounded-lg" />
+                                    <input type="text" value={formData.location} onChange={(e) => setFormData({ ...formData, location: e.target.value })} className="w-full p-2 border rounded-lg" />
                                 ) : <p className="text-gray-900 py-2">{user?.location || 'N/A'}</p>}
                             </div>
 
@@ -282,7 +291,7 @@ const DermatologistProfile = () => {
                             <div className="space-y-2 text-sm">
                                 <label className="font-semibold text-gray-700">Consultation Fee (PKR)</label>
                                 {isEditing ? (
-                                    <input type="number" value={formData.consultationFee} onChange={(e) => setFormData({...formData, consultationFee: e.target.value})} className="w-full p-2 border rounded-lg" />
+                                    <input type="number" value={formData.consultationFee} onChange={(e) => setFormData({ ...formData, consultationFee: e.target.value })} className="w-full p-2 border rounded-lg" />
                                 ) : <p className="text-gray-900 py-2">PKR {user?.consultationFee || 'Not Set'}</p>}
                             </div>
 
@@ -290,7 +299,7 @@ const DermatologistProfile = () => {
                             <div className="md:col-span-2 space-y-2 text-sm">
                                 <label className="font-semibold text-gray-700">Bio / Professional Summary</label>
                                 {isEditing ? (
-                                    <textarea rows={4} value={formData.bio} onChange={(e) => setFormData({...formData, bio: e.target.value})} className="w-full p-2 border rounded-lg" placeholder="Tell patients about your background..." />
+                                    <textarea rows={4} value={formData.bio} onChange={(e) => setFormData({ ...formData, bio: e.target.value })} className="w-full p-2 border rounded-lg" placeholder="Tell patients about your background..." />
                                 ) : <p className="text-gray-900 py-2">{user?.bio || 'No bio provided.'}</p>}
                             </div>
 
@@ -312,34 +321,33 @@ const DermatologistProfile = () => {
                                             const path = getCertPath(cert)
                                             const st = getCertStatus(cert)
                                             return (
-                                            <div key={idx} className="flex items-center gap-2 bg-white p-3 rounded-xl border border-blue-100 shadow-sm">
-                                            <a 
-                                                href={`${apiUrl}/${path.replace(/\\/g, '/')}`} 
-                                                target="_blank" 
-                                                rel="noreferrer" 
-                                                className="flex items-center gap-2 text-blue-600 hover:text-blue-700 flex-1 min-w-0"
-                                            >
-                                                <FileText className="w-4 h-4 shrink-0" />
-                                                <span className="text-sm font-bold truncate flex-1">Certification #{idx + 1}</span>
-                                                <span className="text-[10px] font-black uppercase text-blue-400 shrink-0">View</span>
-                                            </a>
-                                            <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full shrink-0 ${
-                                              st === 'verified' ? 'bg-emerald-100 text-emerald-800' :
-                                              st === 'rejected' ? 'bg-red-100 text-red-800' :
-                                              'bg-amber-100 text-amber-800'
-                                            }`}>{st === 'pending' ? 'Pending' : st === 'verified' ? 'Verified' : 'Declined'}</span>
-                                            </div>
+                                                <div key={idx} className="flex items-center gap-2 bg-white p-3 rounded-xl border border-blue-100 shadow-sm">
+                                                    <a
+                                                        href={`${apiUrl}/${path.replace(/\\/g, '/')}`}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        className="flex items-center gap-2 text-blue-600 hover:text-blue-700 flex-1 min-w-0"
+                                                    >
+                                                        <FileText className="w-4 h-4 shrink-0" />
+                                                        <span className="text-sm font-bold truncate flex-1">Certification #{idx + 1}</span>
+                                                        <span className="text-[10px] font-black uppercase text-blue-400 shrink-0">View</span>
+                                                    </a>
+                                                    <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full shrink-0 ${st === 'verified' ? 'bg-emerald-100 text-emerald-800' :
+                                                        st === 'rejected' ? 'bg-red-100 text-red-800' :
+                                                            'bg-amber-100 text-amber-800'
+                                                        }`}>{st === 'pending' ? 'Pending' : st === 'verified' ? 'Verified' : 'Declined'}</span>
+                                                </div>
                                             )
                                         })}
                                     </div>
                                 ) : (
                                     <p className="text-sm text-blue-600 mt-2 mb-4 italic font-medium">No medical degrees uploaded yet. High-trust profiles have 2+ verified documents.</p>
                                 )}
-                                
+
                                 <div className="mt-6 pt-6 border-t border-blue-100/50">
-                                    <Button 
-                                        variant="outline" 
-                                        size="sm" 
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
                                         className="w-full bg-white font-bold text-blue-700 border-blue-200"
                                         onClick={() => window.location.href = '/dermatologist/certification'}
                                     >
