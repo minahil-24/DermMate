@@ -87,11 +87,21 @@ const DermatologistVerification = () => {
           { label: 'Verification Requests' },
         ]}
       />
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Doctor Verification</h1>
-        <p className="text-gray-600 font-medium">
-          Review each credential separately. Doctors are notified when you accept or decline a document.
-        </p>
+      <div className="mb-8 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Doctor Verification</h1>
+          <p className="text-gray-600 font-medium">
+            Review each credential separately. Doctors are notified when you accept or decline a document.
+          </p>
+        </div>
+        <a
+          href="https://www.pmdc.pk/"
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-lg shadow-blue-100"
+        >
+          <ExternalLink className="w-4 h-4" /> Check PMDC Website
+        </a>
       </div>
 
       {loading ? (
@@ -142,6 +152,11 @@ const DermatologistVerification = () => {
                           <p className="text-gray-500 font-semibold flex items-center gap-1.5">
                             <Mail className="w-3.5 h-3.5" /> {doc.email}
                           </p>
+                          {doc.pmdcNumber && (
+                            <p className="text-blue-600 font-black text-[10px] uppercase tracking-widest mt-1">
+                              PMDC: {doc.pmdcNumber}
+                            </p>
+                          )}
                           <span className="inline-block mt-2 bg-emerald-50 text-emerald-700 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border border-emerald-100">
                             {doc.specialty || 'Generalist'}
                           </span>

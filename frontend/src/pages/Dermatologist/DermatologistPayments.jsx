@@ -111,10 +111,10 @@ const DermatologistPayments = () => {
                     <p className="text-red-100 text-sm font-medium mb-1">Total Pending System Fee (5%)</p>
                     <h3 className="text-3xl font-bold">PKR {systemFeePending.toLocaleString()}</h3>
                     {systemFeePending > 0 ? (
-                        <Button 
-                            onClick={handlePay} 
+                        <Button
+                            onClick={handlePay}
                             disabled={paying}
-                            className="bg-white text-red-600 hover:bg-gray-50 mt-4 w-full border-none shadow-sm"
+                            className="bg-neon text-red-600 hover:bg-gray-50 mt-4 w-full border-none shadow-sm"
                         >
                             {paying ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle className="w-4 h-4 mr-2" />}
                             Pay PKR {systemFeePending.toLocaleString()} Now
