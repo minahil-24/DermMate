@@ -24,6 +24,7 @@ const RegisterPage = () => {
   const [error, setError] = useState('');
   const navigate = useNavigate();
   const login = useAuthStore((state) => state.login);
+  const loginAsGuest = useAuthStore((state) => state.loginAsGuest);
   const addToast = useToastStore((state) => state.addToast);
 
   const handleChange = (e) => {
@@ -92,6 +93,16 @@ const RegisterPage = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleGuestMode = () => {
+    loginAsGuest();
+    addToast({
+      type: 'success',
+      title: 'Guest Mode Enabled',
+      message: 'You can now browse experts. Sign up to book an appointment.',
+    });
+    navigate('/patient/dermatologists');
   };
 
   return (
@@ -228,6 +239,15 @@ const RegisterPage = () => {
 
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? 'Creating account...' : 'Create Account'}
+            </Button>
+
+            <Button 
+              type="button"
+              variant="outline" 
+              className="w-full mt-3 bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100"
+              onClick={handleGuestMode}
+            >
+              Browse as Guest
             </Button>
           </form>
 

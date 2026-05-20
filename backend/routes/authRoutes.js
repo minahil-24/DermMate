@@ -204,6 +204,7 @@ router.patch('/profile', auth(), async (req, res) => {
 
     const patientFields = ['name', 'phoneNumber', 'location', 'gender'];
     const doctorFields = [...patientFields, 'degree', 'specialty', 'clinicName', 'city', 'bio', 'availability'];
+    const optionalDoctorFields = new Set(['phoneNumber', 'gender', 'degree', 'city', 'availability']);
 
     // Validation for empty fields and specific formats
     for (const key of allow) {
@@ -215,9 +216,13 @@ router.patch('/profile', auth(), async (req, res) => {
 
         const val = String(req.body[key]).trim();
         
-        // No field should be empty if provided
-        if (val === '') {
+        // No field should be empty if provided unless it is an optional profile field.
+        if (val === '' && !(user.role === 'dermatologist' && optionalDoctorFields.has(key))) {
           return res.status(400).json({ message: `${key.charAt(0).toUpperCase() + key.slice(1)} cannot be empty` });
+        }
+
+        if (val === '' && user.role === 'dermatologist' && optionalDoctorFields.has(key)) {
+          continue;
         }
 
         // Phone number validation: +92 followed by 10 digits

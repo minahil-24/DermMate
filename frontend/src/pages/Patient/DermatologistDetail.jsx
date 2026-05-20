@@ -22,7 +22,7 @@ const DermatologistDetail = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const draftCaseId = location.state?.draftCaseId;
-    const { token } = useAuthStore();
+    const { token, isGuest } = useAuthStore();
     const addToast = useToastStore((state) => state.addToast);
 
     const [doctor, setDoctor] = useState(null);
@@ -140,6 +140,15 @@ const DermatologistDetail = () => {
 
                             <div className="flex gap-3 pb-4">
                                 <Button size="lg" className="rounded-2xl px-12 bg-slate-900 shadow-xl shadow-slate-200 h-16 font-black uppercase tracking-widest text-xs" onClick={async () => {
+                                    if (isGuest) {
+                                        addToast({
+                                            type: 'info',
+                                            title: 'Sign In Required',
+                                            message: 'Please sign in or create an account to book an appointment.',
+                                        })
+                                        navigate('/login')
+                                        return
+                                    }
                                     if (draftCaseId) {
                                         mergeBooking({ draftCaseId, doctorId: doctor._id })
                                         navigate('/patient/booking/schedule', {

@@ -15,7 +15,7 @@ import DermatologistNearbyMap, { LAHORE } from '../../components/maps/Dermatolog
 const DermatologistSearch = () => {
     const navigate = useNavigate()
     const location = useLocation()
-    const { token } = useAuthStore()
+    const { token, isGuest } = useAuthStore()
     const addToast = useToastStore((s) => s.addToast)
     const draftCaseId = location.state?.draftCaseId
     const [dermatologists, setDermatologists] = useState([])
@@ -537,6 +537,15 @@ const DermatologistSearch = () => {
                                     <Button
                                         className="flex-1 rounded-2xl font-black uppercase tracking-widest text-[10px] bg-slate-900 hover:bg-emerald-600 h-12"
                                         onClick={async () => {
+                                            if (isGuest) {
+                                                addToast({
+                                                    type: 'info',
+                                                    title: 'Sign In Required',
+                                                    message: 'Please sign in or create an account to book an appointment.',
+                                                })
+                                                navigate('/login')
+                                                return
+                                            }
                                             if (draftCaseId) {
                                                 mergeBooking({
                                                     draftCaseId,

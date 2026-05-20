@@ -8,6 +8,7 @@ export const useAuthStore = create(
       token: null,
       role: null,
       isAuthenticated: false,
+      isGuest: false,
       
       login: (userData, token, role) => {
         set({
@@ -15,6 +16,17 @@ export const useAuthStore = create(
           token,
           role,
           isAuthenticated: true,
+          isGuest: false,
+        })
+      },
+      
+      loginAsGuest: () => {
+        set({
+          user: null,
+          token: null,
+          role: null,
+          isAuthenticated: false,
+          isGuest: true,
         })
       },
       
@@ -24,6 +36,7 @@ export const useAuthStore = create(
           token: null,
           role: null,
           isAuthenticated: false,
+          isGuest: false,
         })
         localStorage.removeItem('auth-storage')
       },

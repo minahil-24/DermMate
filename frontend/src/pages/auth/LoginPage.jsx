@@ -109,6 +109,17 @@ const LoginPage = () => {
     })
   }
 
+  const handleGuestMode = () => {
+    const loginAsGuest = useAuthStore.getState().loginAsGuest
+    loginAsGuest()
+    addToast({
+      type: 'success',
+      title: 'Guest Mode Enabled',
+      message: 'You can now browse experts. Sign in to book an appointment.',
+    })
+    navigate('/patient/dermatologists')
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 flex items-center justify-center p-4">
       <motion.div
@@ -226,6 +237,14 @@ const LoginPage = () => {
                 />
               </svg>
               Continue with Google
+            </Button>
+
+            <Button
+              variant="outline"
+              className="w-full mt-3 bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100 relative flex items-center justify-center p-2"
+              onClick={handleGuestMode}
+            >
+              Browse as Guest
             </Button>
           </div>
 

@@ -112,12 +112,14 @@ const DermatologistProfile = () => {
                 experience: formData.experience,
                 clinicName: formData.clinicName,
                 location: formData.location,
-                city: formData.city,
                 bio: formData.bio,
                 consultationFee: formData.consultationFee,
                 availability: formData.availability,
                 gender: formData.gender,
                 clinicAddress: formData.clinicAddress,
+            }
+            if (String(formData.city || '').trim()) {
+                patchBody.city = String(formData.city).trim()
             }
             if (Number.isFinite(formData.clinicLatitude) && Number.isFinite(formData.clinicLongitude)) {
                 patchBody.clinicLatitude = formData.clinicLatitude
