@@ -128,7 +128,7 @@ const Questionnaire = () => {
                     <label className="block text-sm font-medium text-gray-700">{field.label}</label>
                     {field.type === 'select' ? (
                       <select
-                        {...register(field.name, { required: true })}
+                        {...register(field.name, { required: field.name === 'location' ? 'Please select an area' : true })}
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
                       >
                         <option value="">Select an option</option>

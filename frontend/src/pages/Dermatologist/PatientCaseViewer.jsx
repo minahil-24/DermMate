@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { User, ArrowRight, Loader2 } from 'lucide-react'
 import axios from 'axios'
 import { useNavigate } from 'react-router-dom'
+import DeactivatedAccountBanner from '../../components/common/DeactivatedAccountBanner'
 import Breadcrumbs from '../../components/common/Breadcrumbs'
 import Card from '../../components/ui/Card'
 import { useAuthStore } from '../../store/authStore'
@@ -11,7 +12,8 @@ import { formatDate, formatTime } from '../../utils/helpers'
 
 const PatientCaseViewer = () => {
   const navigate = useNavigate()
-  const { token } = useAuthStore()
+  const { token, user, updateUser } = useAuthStore()
+  const isDeactivated = user?.isDeactivated === true
   const addToast = useToastStore((s) => s.addToast)
   const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000'
   const [loading, setLoading] = useState(true)
@@ -22,6 +24,10 @@ const PatientCaseViewer = () => {
       if (!token) return
       try {
         setLoading(true)
+        const meRes = await axios.get(`${apiUrl}/api/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        updateUser(meRes.data)
         const res = await axios.get(`${apiUrl}/api/cases/doctor/incoming`, {
           headers: { Authorization: `Bearer ${token}` },
         })
@@ -33,7 +39,7 @@ const PatientCaseViewer = () => {
       }
     }
     load()
-  }, [token, apiUrl])
+  }, [token, apiUrl, updateUser])
 
   const acceptedCases = useMemo(() => {
     return (cases || [])
@@ -78,6 +84,28 @@ const PatientCaseViewer = () => {
     }
   }
 
+  const restartCase = async (e, caseId) => {
+    e.stopPropagation()
+    if (!window.confirm('Restart this closed case? The patient will be notified.')) return
+    try {
+      await axios.patch(
+        `${apiUrl}/api/cases/${caseId}/status/restart`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      setCases((prev) =>
+        prev.map((c) => (c._id === caseId ? { ...c, caseStatus: 'started', closure: {} } : c))
+      )
+      addToast({ type: 'success', title: 'Case Restarted', message: 'Case has been reopened.' })
+    } catch (err) {
+      addToast({
+        type: 'error',
+        title: 'Could not restart case',
+        message: err.response?.data?.message || err.message || 'Failed to restart case',
+      })
+    }
+  }
+
   const declineAcceptedCase = async (e, caseId) => {
     e.stopPropagation()
     const c = cases.find((x) => x._id === caseId)
@@ -114,6 +142,8 @@ const PatientCaseViewer = () => {
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Appointments</h1>
         <p className="text-gray-600">Only patients whose appointment request you accepted appear here.</p>
       </div>
+
+      {isDeactivated && <DeactivatedAccountBanner />}
 
       {loading ? (
         <div className="flex justify-center py-16">
@@ -165,10 +195,21 @@ const PatientCaseViewer = () => {
                         Started
                       </span>
                     ) : c.caseStatus === 'closed' ? (
-                      <span className="px-2 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700 border border-gray-200">
-                        Closed
-                      </span>
-                    ) : (
+                      <>
+                        <span className="px-2 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700 border border-gray-200">
+                          Closed
+                        </span>
+                        {!isDeactivated && (
+                          <button
+                            type="button"
+                            onClick={(e) => restartCase(e, c._id)}
+                            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700"
+                          >
+                            Restart Case
+                          </button>
+                        )}
+                      </>
+                    ) : !isDeactivated ? (
                       <button
                         type="button"
                         onClick={(e) => startCase(e, c._id)}
@@ -178,7 +219,8 @@ const PatientCaseViewer = () => {
                       >
                         Start Case
                       </button>
-                    )}
+                    ) : null}
+                    {!isDeactivated && (
                     <button
                       type="button"
                       onClick={(e) => declineAcceptedCase(e, c._id)}
@@ -189,6 +231,7 @@ const PatientCaseViewer = () => {
                     >
                       Decline
                     </button>
+                    )}
                     <ArrowRight className="w-5 h-5 text-gray-400" />
                   </div>
               </div>

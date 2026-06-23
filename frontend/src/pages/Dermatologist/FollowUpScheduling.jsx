@@ -1,10 +1,9 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { motion } from 'framer-motion'
-import { Calendar, Clock, Loader2, User, ExternalLink, CheckCircle2 } from 'lucide-react'
+import { Calendar, Loader2, User, ExternalLink } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import Card from '../../components/ui/Card'
-import Button from '../../components/ui/Button'
 import Breadcrumbs from '../../components/common/Breadcrumbs'
 import EmptyState from '../../components/common/EmptyState'
 import { useAuthStore } from '../../store/authStore'
@@ -13,7 +12,7 @@ import { formatDate, formatTime, formatDateTime } from '../../utils/helpers'
 
 const FollowUpScheduling = () => {
   const navigate = useNavigate()
-  const { token } = useAuthStore()
+  const { token, user } = useAuthStore()
   const addToast = useToastStore((state) => state.addToast)
   const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000'
 
@@ -57,17 +56,6 @@ const FollowUpScheduling = () => {
     return fups
   }, [cases])
 
-  const upcoming = useMemo(
-    () => allFollowUps.filter((f) => new Date(f.date) >= now).sort((a, b) => new Date(a.date) - new Date(b.date)),
-    [allFollowUps]
-  )
-
-  const previous = useMemo(
-    () => allFollowUps.filter((f) => new Date(f.date) < now).sort((a, b) => new Date(b.date) - new Date(a.date)),
-    [allFollowUps]
-  )
-
-  /* Accepted cases (for quick scheduling links) */
   const acceptedCases = useMemo(() =>
     cases.filter((c) => !c.isCancelledByPatient && c.doctorReviewStatus === 'accepted')
       .sort((a, b) => new Date(a.appointmentDate) - new Date(b.appointmentDate)),
@@ -123,66 +111,68 @@ const FollowUpScheduling = () => {
             </div>
           </Card>
 
-          {/* Upcoming follow-ups */}
+          {/* All follow-ups */}
           <div>
             <h2 className="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
-              <Clock className="w-5 h-5 text-blue-500" /> Upcoming Follow-ups
-              {upcoming.length > 0 && (
-                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold">{upcoming.length}</span>
+              <Calendar className="w-5 h-5 text-emerald-600" /> All Follow-ups
+              {allFollowUps.length > 0 && (
+                <span className="text-xs bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold">{allFollowUps.length}</span>
               )}
             </h2>
-            {upcoming.length === 0 ? (
-              <Card className="p-6 text-center text-gray-500">No upcoming follow-ups.</Card>
+            <Card className="p-4 mb-4 bg-emerald-50/50 border border-emerald-100">
+              <p className="text-xs font-bold uppercase text-emerald-700 mb-1">Dermatologist</p>
+              <p className="font-bold text-gray-900">Dr. {user?.name || '—'}</p>
+              <p className="text-sm text-gray-600">
+                {[user?.specialty, user?.degree].filter(Boolean).join(' · ') || 'Dermatology'}
+              </p>
+              {user?.email && <p className="text-xs text-gray-500 mt-1">{user.email}</p>}
+            </Card>
+            {allFollowUps.length === 0 ? (
+              <Card className="p-6 text-center text-gray-500">No follow-ups scheduled yet.</Card>
             ) : (
               <div className="space-y-3">
-                {upcoming.map((f, idx) => (
-                  <motion.div key={f._id || idx} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.03 }}>
-                    <Card className="p-4 border-l-4 border-blue-500 shadow-sm hover:shadow-md transition-all">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <p className="font-bold text-gray-900">{formatDate(f.date)} at {formatTime(f.timeSlot)}</p>
-                          <p className="text-sm text-gray-600 mt-0.5">{f.reason || 'Follow-up'}</p>
-                          <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
-                            <User className="w-3 h-3" /> {f.patientName}
-                            <span className="capitalize ml-1">· {f.complaintType}</span>
-                          </p>
+                {[...allFollowUps].sort((a, b) => new Date(b.date) - new Date(a.date)).map((f, idx) => {
+                  const isPast = new Date(f.date) < now
+                  return (
+                    <motion.div key={f._id || idx} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.03 }}>
+                      <Card className={`p-4 border-l-4 shadow-sm hover:shadow-md transition-all ${isPast ? 'border-gray-300 bg-gray-50' : 'border-blue-500'}`}>
+                        <div className="flex justify-between items-start gap-3">
+                          <div>
+                            <p className="font-bold text-gray-900">{formatDate(f.date)} at {formatTime(f.timeSlot)}</p>
+                            <p className="text-sm text-gray-600 mt-0.5">{f.reason || 'Follow-up'}</p>
+                            <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
+                              <User className="w-3 h-3" /> Patient: {f.patientName}
+                              <span className="capitalize ml-1">· {f.complaintType}</span>
+                            </p>
+                            <p className="text-xs text-gray-400 mt-1">
+                              Dr. {user?.name || '—'} · {user?.specialty || 'Dermatology'}
+                            </p>
+                            {f.createdAt && (
+                              <p className="text-xs text-gray-400 mt-0.5">Created {formatDateTime(f.createdAt)}</p>
+                            )}
+                            {f.status === 'submitted' && (
+                              <span className="inline-block mt-2 text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                                Patient submitted
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex flex-col items-end gap-2 shrink-0">
+                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${isPast ? 'bg-gray-200 text-gray-600' : 'bg-blue-100 text-blue-700'}`}>
+                              {isPast ? 'Past' : 'Upcoming'}
+                            </span>
+                            <button
+                              onClick={() => navigate(`/dermatologist/pcases/${f.caseId}`)}
+                              className="p-2 rounded-lg hover:bg-emerald-50 text-emerald-600 transition-colors"
+                              title="Open case"
+                            >
+                              <ExternalLink className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
-                        <button
-                          onClick={() => navigate(`/dermatologist/pcases/${f.caseId}`)}
-                          className="p-2 rounded-lg hover:bg-emerald-50 text-emerald-600 transition-colors"
-                          title="Open case"
-                        >
-                          <ExternalLink className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </Card>
-                  </motion.div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Previous follow-ups */}
-          <div>
-            <h2 className="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
-              <CheckCircle2 className="w-5 h-5 text-gray-400" /> Previous Follow-ups
-            </h2>
-            {previous.length === 0 ? (
-              <Card className="p-6 text-center text-gray-500">No previous follow-ups.</Card>
-            ) : (
-              <div className="space-y-2">
-                {previous.map((f, idx) => (
-                  <Card key={f._id || idx} className="p-4 bg-gray-50 shadow-sm">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="font-medium text-gray-800">{formatDate(f.date)} at {formatTime(f.timeSlot)}</p>
-                        <p className="text-sm text-gray-500">{f.reason || 'Follow-up'}</p>
-                        <p className="text-xs text-gray-400 mt-1">{f.patientName}</p>
-                      </div>
-                      <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
-                    </div>
-                  </Card>
-                ))}
+                      </Card>
+                    </motion.div>
+                  )
+                })}
               </div>
             )}
           </div>

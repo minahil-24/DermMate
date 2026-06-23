@@ -11,6 +11,7 @@ const clinicRoutes = require('./routes/clinicRoutes')
 const billingRoutes = require('./routes/billingRoutes')
 const supportRoutes = require('./routes/supportRoutes')
 const adminRoutes = require('./routes/adminRoutes')
+const medicalRecordsRoutes = require('./routes/medicalRecordsRoutes')
 const { syncCertificationFlags } = require('./utils/certHelpers')
 const checkBlock = require('./middleware/checkBlock')
 
@@ -93,6 +94,7 @@ app.use('/api/cases', caseRoutes)
 app.use('/api/billing', billingRoutes)
 app.use('/api/support', supportRoutes)
 app.use('/api/admin', adminRoutes)
+app.use('/api/medical-records', medicalRecordsRoutes)
 
 // Basic health check
 app.get('/health', (req, res) => {

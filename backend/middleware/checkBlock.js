@@ -1,37 +1,47 @@
 const User = require('../models/User');
 
+const DEACTIVATED_MESSAGE =
+  'Your account has been deactivated. You can view your appointment list but cannot manage patients. Contact the administrator for assistance.';
+
 const checkBlock = async (req, res, next) => {
   try {
     if (req.user && req.user.role === 'dermatologist') {
       const user = await User.findById(req.user.id);
       if (user) {
+        if (user.isDeactivated) {
+          if (req.method !== 'GET') {
+            return res.status(403).json({
+              message: DEACTIVATED_MESSAGE,
+              code: 'ACCOUNT_DEACTIVATED',
+            });
+          }
+          req.accountDeactivated = true;
+          return next();
+        }
+
         // Enforce dynamic deadline check if not yet blocked but past due
         let isBlocked = user.blockedDueToUnpaidFee;
-        
+
         if (user.feePaymentDeadline && new Date() > user.feePaymentDeadline && !isBlocked) {
-            user.blockedDueToUnpaidFee = true;
-            await user.save();
-            isBlocked = true;
+          user.blockedDueToUnpaidFee = true;
+          await user.save();
+          isBlocked = true;
         }
 
         if (isBlocked) {
-          // Allow billing requests to pass through so they can unblock
-          console.log('User is blocked. checking URL:', req.originalUrl);
           if (req.originalUrl.includes('/api/billing')) {
-              console.log('Allowing billing request through block');
-              return next();
+            return next();
           }
-          console.log('Blocking request due to unpaid fees');
-          return res.status(403).json({ 
-            message: "Blocked due to unpaid fees. Please pay your pending charges to continue.",
-            code: 'ACCOUNT_BLOCKED_DUE_TO_FEES'
+          return res.status(403).json({
+            message: 'Blocked due to unpaid fees. Please pay your pending charges to continue.',
+            code: 'ACCOUNT_BLOCKED_DUE_TO_FEES',
           });
         }
       }
     }
     next();
   } catch (err) {
-    res.status(500).json({ message: "Server error checking block status" });
+    res.status(500).json({ message: 'Server error checking block status' });
   }
 };
 

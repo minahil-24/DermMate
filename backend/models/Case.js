@@ -51,6 +51,14 @@ const followUpEntry = new mongoose.Schema(
     reason: { type: String, default: 'Follow-up' },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     createdAt: { type: Date, default: Date.now },
+    status: { type: String, enum: ['pending', 'submitted'], default: 'pending' },
+    patientImage: {
+      filePath: { type: String, default: '' },
+      originalName: { type: String, default: '' },
+      uploadedAt: { type: Date, default: null },
+    },
+    pdfReportPath: { type: String, default: '' },
+    submittedAt: { type: Date, default: null },
   },
   { _id: true }
 )

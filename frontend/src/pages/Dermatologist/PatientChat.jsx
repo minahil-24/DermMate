@@ -6,12 +6,14 @@ import { useAuthStore } from '../../store/authStore'
 import { useToastStore } from '../../store/toastStore'
 import { formatDate, formatTime, formatDateTime } from '../../utils/helpers'
 import { normalizeMedicalText } from '../../utils/nlpMedicalNormalizer'
+import DeactivatedAccountBanner from '../../components/common/DeactivatedAccountBanner'
 import AlopeciaAiDoctorPanel from '../../components/doctor/AlopeciaAiDoctorPanel'
 
 const PatientChat = () => {
   const { id: caseId } = useParams()
   const navigate = useNavigate()
-  const { token } = useAuthStore()
+  const { token, user } = useAuthStore()
+  const isDeactivated = user?.isDeactivated === true
   const addToast = useToastStore((s) => s.addToast)
   const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000'
 
@@ -194,6 +196,7 @@ const PatientChat = () => {
   }, [caseId, token, apiUrl])
 
   const patient = caze?.patient
+  const isCaseClosed = caze?.caseStatus === 'closed'
 
   const submitNote = async () => {
     if (!noteText.trim()) return
@@ -315,6 +318,14 @@ const PatientChat = () => {
 
   const submitFollowUp = async () => {
     if (!followDate || !followTime) return
+    if (isCaseClosed) {
+      addToast({
+        type: 'error',
+        title: 'Case closed',
+        message: 'Restart the case to schedule follow-ups.',
+      })
+      return
+    }
     const selected = new Date(`${followDate}T00:00:00`)
     const today = new Date()
     const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate())
@@ -323,18 +334,6 @@ const PatientChat = () => {
       return
     }
     try {
-      if (caze?.caseStatus === 'closed') {
-        const shouldRestart = window.confirm(
-          'This case is closed. Do you want to start it again before adding a follow-up?'
-        )
-        if (!shouldRestart) return
-        await axios.patch(
-          `${apiUrl}/api/cases/${caseId}/status/start`,
-          {},
-          { headers: { Authorization: `Bearer ${token}` } }
-        )
-      }
-
       await axios.post(
         `${apiUrl}/api/cases/${caseId}/followups`,
         { date: followDate, timeSlot: followTime, reason: followReason },
@@ -343,9 +342,11 @@ const PatientChat = () => {
       setFollowDate('')
       setFollowTime('')
       setFollowReason('Follow-up')
-      if (caze?.caseStatus === 'closed') {
-        addToast({ type: 'success', title: 'Case Restarted', message: 'Case restarted and follow-up created.' })
-      }
+      addToast({
+        type: 'success',
+        title: 'Follow-up created',
+        message: 'Patient will see all follow-up dates and your details in their Follow-ups section.',
+      })
       await loadCase()
     } catch (e) {
       addToast({ type: 'error', title: 'Error', message: e.response?.data?.message || e.message })
@@ -419,6 +420,21 @@ const PatientChat = () => {
         { headers: { Authorization: `Bearer ${token}` } }
       )
       addToast({ type: 'success', title: 'Case Started', message: 'This case is now marked as started.' })
+      await loadCase()
+    } catch (e) {
+      addToast({ type: 'error', title: 'Error', message: e.response?.data?.message || e.message })
+    }
+  }
+
+  const restartCase = async () => {
+    if (!window.confirm('Restart this closed case? The patient will be notified and treatment can continue.')) return
+    try {
+      await axios.patch(
+        `${apiUrl}/api/cases/${caseId}/status/restart`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      addToast({ type: 'success', title: 'Case Restarted', message: 'Case has been reopened for treatment.' })
       await loadCase()
     } catch (e) {
       addToast({ type: 'error', title: 'Error', message: e.response?.data?.message || e.message })
@@ -508,12 +524,8 @@ const PatientChat = () => {
 
   const followUps = caze?.followUps || []
   const now = new Date()
-  const previousFollowUps = useMemo(
-    () => followUps.filter((f) => f?.date && new Date(f.date) < now).sort((a, b) => new Date(b.date) - new Date(a.date)),
-    [followUps]
-  )
-  const upcomingFollowUps = useMemo(
-    () => followUps.filter((f) => f?.date && new Date(f.date) >= now).sort((a, b) => new Date(a.date) - new Date(b.date)),
+  const allFollowUpsSorted = useMemo(
+    () => [...followUps].sort((a, b) => new Date(b.date) - new Date(a.date)),
     [followUps]
   )
   const minFollowUpDate = useMemo(() => {
@@ -542,6 +554,11 @@ const PatientChat = () => {
 
   return (
     <div className="w-full h-full flex flex-col">
+      {isDeactivated && (
+        <div className="p-4 pb-0">
+          <DeactivatedAccountBanner />
+        </div>
+      )}
       <div className="bg-white rounded-xl shadow-lg flex-1 flex flex-col">
 
         {/* Header */}
@@ -587,21 +604,32 @@ const PatientChat = () => {
                 Start Case
               </button>
             )}
-            <button
-              type="button"
-              onClick={() => setShowClosePanel((v) => !v)}
-              disabled={caze?.caseStatus === 'closed'}
-              className="px-3 py-1.5 rounded-lg text-sm font-semibold border border-red-200 text-red-700 bg-red-50 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed"
-              title={
-                (caze?.followUps || []).length > 0
-                  ? 'Remove follow-up appointments to close this case'
-                  : !hasAppointmentStarted
-                    ? 'Case can be closed on or after appointment date'
-                    : ''
-              }
-            >
-              {caze?.caseStatus === 'closed' ? 'Case Closed' : 'Close Case'}
-            </button>
+            {caze?.caseStatus === 'closed' ? (
+              <button
+                type="button"
+                onClick={restartCase}
+                disabled={isDeactivated}
+                className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Restart Case
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowClosePanel((v) => !v)}
+                disabled={!hasAppointmentStarted}
+                className="px-3 py-1.5 rounded-lg text-sm font-semibold border border-red-200 text-red-700 bg-red-50 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                title={
+                  (caze?.followUps || []).length > 0
+                    ? 'Remove follow-up appointments to close this case'
+                    : !hasAppointmentStarted
+                      ? 'Case can be closed on or after appointment date'
+                      : ''
+                }
+              >
+                Close Case
+              </button>
+            )}
           </div>
         </div>
         {showClosePanel && caze?.caseStatus !== 'closed' && (
@@ -662,6 +690,14 @@ const PatientChat = () => {
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-4">
+          {isCaseClosed && !loading && caze && (
+            <div className="mb-4 px-4 py-3 rounded-lg border border-amber-200 bg-amber-50 text-amber-900 text-sm">
+              <p className="font-semibold">Case closed — view only</p>
+              <p className="mt-0.5">
+                Reports, notes, progress, and other records can be viewed but not changed. Use Restart Case to edit again.
+              </p>
+            </div>
+          )}
           {loading ? (
             <div className="flex justify-center py-16">
               <Loader2 className="w-10 h-10 animate-spin text-emerald-500" />
@@ -695,6 +731,7 @@ const PatientChat = () => {
                 {(caze.reports || []).length === 0 && <div className="text-gray-600">No reports yet.</div>}
               </div>
 
+              {!isCaseClosed && (
               <div className="p-4 border rounded-lg bg-white space-y-3">
                 <p className="font-semibold text-gray-900">Add new report</p>
                 <input
@@ -719,6 +756,7 @@ const PatientChat = () => {
                   Save report
                 </button>
               </div>
+              )}
             </div>
           )}
 
@@ -773,6 +811,7 @@ const PatientChat = () => {
                 ))}
               </div>
 
+              {!isCaseClosed && (
               <div className="p-4 border rounded-lg bg-white space-y-3">
                 <p className="font-semibold text-gray-900">Upload new comparison</p>
                 <div className="text-sm text-gray-600">Step 1: Upload BEFORE image</div>
@@ -787,6 +826,7 @@ const PatientChat = () => {
                   Upload & save comparison
                 </button>
               </div>
+              )}
             </div>
           )}
 
@@ -826,6 +866,7 @@ const PatientChat = () => {
                     ) : (
                       <>
                         <div className="text-gray-900 whitespace-pre-wrap">{n.text}</div>
+                        {!isCaseClosed && (
                         <div className="mt-2 flex items-center gap-2">
                           <button
                             type="button"
@@ -842,12 +883,14 @@ const PatientChat = () => {
                             Delete
                           </button>
                         </div>
+                        )}
                       </>
                     )}
                   </div>
                 ))}
                 {(caze.clinicalNotes || []).length === 0 && <div className="text-gray-600">No notes yet.</div>}
               </div>
+              {!isCaseClosed && (
               <div className="p-3 border rounded-lg bg-white space-y-2">
                 <div className="flex items-center justify-between mb-2">
                     <p className="font-semibold text-gray-900">Add Clinical Note</p>
@@ -885,6 +928,7 @@ const PatientChat = () => {
                   Save note
                 </button>
               </div>
+              )}
             </div>
           )}
 
@@ -892,6 +936,44 @@ const PatientChat = () => {
             <div className="space-y-6">
               <h2 className="text-xl font-bold text-gray-800 border-b pb-2">Treatment Plan</h2>
 
+              {isCaseClosed ? (
+                <div className="space-y-4">
+                  {planName && (
+                    <div className="p-3 border rounded-lg bg-white">
+                      <p className="text-xs font-bold uppercase text-gray-500 mb-1">Plan name</p>
+                      <p className="font-semibold text-gray-900">{planName}</p>
+                    </div>
+                  )}
+                  {medications.length > 0 ? (
+                    medications.map((m, idx) => (
+                      <div key={idx} className="p-3 bg-gray-50 border rounded-lg">
+                        <div className="font-semibold text-gray-900">{m.name}</div>
+                        <div className="text-sm text-gray-600">
+                          {m.dosage}
+                          {m.timesPerDay ? ` · ${m.timesPerDay} time${m.timesPerDay > 1 ? 's' : ''}/day` : ''}
+                          {m.durationDays ? ` · ${m.durationDays} day${Number(m.durationDays) === 1 ? '' : 's'}` : ''}
+                          {m.duration ? ` · ${m.duration}` : ''}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-gray-600">No medications in plan.</p>
+                  )}
+                  {lifestyle && (
+                    <div className="p-3 border rounded-lg bg-white">
+                      <p className="text-xs font-bold uppercase text-gray-500 mb-1">Lifestyle recommendations</p>
+                      <p className="text-sm text-gray-800 whitespace-pre-wrap">{lifestyle}</p>
+                    </div>
+                  )}
+                  {planNotes && (
+                    <div className="p-3 border rounded-lg bg-white">
+                      <p className="text-xs font-bold uppercase text-gray-500 mb-1">Doctor notes</p>
+                      <p className="text-sm text-gray-800 whitespace-pre-wrap">{planNotes}</p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+              <div className="space-y-4">
               <div className="space-y-3">
                 <div className="p-3 border rounded-lg bg-white space-y-2">
                   <div className="font-semibold text-gray-900">Treatment plan name</div>
@@ -967,6 +1049,8 @@ const PatientChat = () => {
               <button onClick={saveTreatmentPlan} className="w-full px-5 py-3 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700">
                 Save treatment plan
               </button>
+              </div>
+              )}
             </div>
           )}
 
@@ -984,7 +1068,8 @@ const PatientChat = () => {
                   max="100"
                   value={progress}
                   onChange={(e) => setProgress(parseInt(e.target.value))}
-                  className="w-full h-3 bg-emerald-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+                  disabled={isCaseClosed}
+                  className="w-full h-3 bg-emerald-200 rounded-lg appearance-none cursor-pointer accent-emerald-600 disabled:opacity-60 disabled:cursor-not-allowed"
                 />
                 <div className="flex justify-between text-xs font-bold text-emerald-700 uppercase tracking-tighter">
                   <span>Initial Diagnosis</span>
@@ -995,113 +1080,32 @@ const PatientChat = () => {
                 </p>
               </div>
 
+              {!isCaseClosed && (
               <button onClick={saveProgress} className="w-full px-6 py-4 bg-emerald-600 text-white font-black uppercase tracking-widest text-sm rounded-xl hover:bg-emerald-700 shadow-lg hover:shadow-emerald-100 transition-all">
                 Update & Notify Patient
               </button>
+              )}
             </div>
           )}
 
           {activeTab === 'appointments' && (
             <div className="space-y-6">
-              <h2 className="text-xl font-bold text-gray-800 border-b pb-2">Appointments</h2>
+              <h2 className="text-xl font-bold text-gray-800 border-b pb-2">Appointments & Follow-ups</h2>
 
-              {upcomingFollowUps.length > 0 && (
-                <div className="p-4 rounded-xl border-2 border-emerald-300 bg-emerald-50 shadow-sm">
-                  <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">Next Appointment</p>
-                  {editingFollowUpId === upcomingFollowUps[0]._id ? (
-                    <div className="space-y-2 mt-2">
-                      <input
-                        type="date"
-                        ref={editFollowDateInputRef}
-                        min={minFollowUpDate}
-                        value={editingFollowDate}
-                        onChange={(e) => setEditingFollowDate(e.target.value)}
-                        className="no-native-picker-icon px-3 py-2 border rounded-lg w-full bg-white text-base"
-                      />
-                      <input
-                        type="time"
-                        ref={editFollowTimeInputRef}
-                        value={editingFollowTime}
-                        onChange={(e) => setEditingFollowTime(e.target.value)}
-                        className="no-native-picker-icon px-3 py-2 border rounded-lg w-full bg-white text-base"
-                      />
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            editFollowDateInputRef.current?.focus()
-                            editFollowDateInputRef.current?.showPicker?.()
-                          }}
-                          className="px-3 py-2 rounded-lg border border-emerald-200 bg-white text-emerald-700 hover:bg-emerald-50"
-                        >
-                          <Calendar className="w-5 h-5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            editFollowTimeInputRef.current?.focus()
-                            editFollowTimeInputRef.current?.showPicker?.()
-                          }}
-                          className="px-3 py-2 rounded-lg border border-emerald-200 bg-white text-emerald-700 hover:bg-emerald-50"
-                        >
-                          <Clock className="w-5 h-5" />
-                        </button>
-                      </div>
-                      <input
-                        value={editingFollowReason}
-                        onChange={(e) => setEditingFollowReason(e.target.value)}
-                        className="px-3 py-2 border rounded-lg w-full bg-white"
-                        placeholder="Reason"
-                      />
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => updateFollowUp(upcomingFollowUps[0]._id)}
-                          disabled={!editingFollowDate || !editingFollowTime}
-                          className="px-3 py-1.5 text-xs rounded-lg bg-emerald-600 text-white disabled:opacity-50"
-                        >
-                          Save
-                        </button>
-                        <button
-                          type="button"
-                          onClick={cancelEditingFollowUp}
-                          className="px-3 py-1.5 text-xs rounded-lg border border-gray-300 text-gray-700 bg-white"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <p className="text-lg font-extrabold text-emerald-900 mt-1">
-                        {formatDate(upcomingFollowUps[0].date)} at {formatTime(upcomingFollowUps[0].timeSlot)}
-                      </p>
-                      <p className="text-sm text-emerald-800 mt-1">
-                        Reason: {upcomingFollowUps[0].reason || 'Follow-up'}
-                      </p>
-                      <div className="mt-2 flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => startEditingFollowUp(upcomingFollowUps[0])}
-                          className="px-3 py-1.5 text-xs rounded-lg border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => deleteFollowUp(upcomingFollowUps[0]._id)}
-                          className="px-3 py-1.5 text-xs rounded-lg border border-red-200 text-red-700 bg-red-50 hover:bg-red-100"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
-              {upcomingFollowUps.length === 0 && (
-                <div className="text-sm text-gray-600">No upcoming follow-ups.</div>
-              )}
+              <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50/50">
+                <p className="text-xs font-bold uppercase tracking-wide text-emerald-700 mb-2">Dermatologist</p>
+                <p className="font-bold text-gray-900">Dr. {user?.name || caze?.doctor?.name || '—'}</p>
+                <p className="text-sm text-gray-600 mt-1">
+                  {user?.specialty || caze?.doctor?.specialty || 'Dermatology'}
+                  {(user?.degree || caze?.doctor?.degree) ? ` · ${user?.degree || caze?.doctor?.degree}` : ''}
+                </p>
+                {(user?.email || caze?.doctor?.email) && (
+                  <p className="text-xs text-gray-500 mt-1">{user?.email || caze?.doctor?.email}</p>
+                )}
+                {(user?.clinicName) && (
+                  <p className="text-xs text-gray-500 mt-0.5">{user.clinicName}</p>
+                )}
+              </div>
 
               <div className="p-4 border rounded-lg bg-gray-50">
                 <p className="font-semibold text-gray-900">Original appointment</p>
@@ -1111,58 +1115,181 @@ const PatientChat = () => {
                 </p>
               </div>
 
-              <div className="p-4 border rounded-lg bg-white space-y-3">
-                <p className="font-semibold text-gray-900">Create new appointment (follow-up)</p>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="date"
-                    ref={followDateInputRef}
-                    min={minFollowUpDate}
-                    value={followDate}
-                    onChange={(e) => setFollowDate(e.target.value)}
-                    className="no-native-picker-icon px-3 py-2 border rounded-lg w-full text-base"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      followDateInputRef.current?.focus()
-                      followDateInputRef.current?.showPicker?.()
-                    }}
-                    className="px-3 py-2 rounded-lg border border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
-                    aria-label="Open date picker"
-                  >
-                    <Calendar className="w-5 h-5" />
-                  </button>
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="time"
-                    ref={followTimeInputRef}
-                    value={followTime}
-                    onChange={(e) => setFollowTime(e.target.value)}
-                    className="no-native-picker-icon px-3 py-2 border rounded-lg w-full text-base"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      followTimeInputRef.current?.focus()
-                      followTimeInputRef.current?.showPicker?.()
-                    }}
-                    className="px-3 py-2 rounded-lg border border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
-                    aria-label="Open time picker"
-                  >
-                    <Clock className="w-5 h-5" />
-                  </button>
-                </div>
-                <input value={followReason} onChange={(e) => setFollowReason(e.target.value)} className="px-3 py-2 border rounded-lg w-full" placeholder="Reason" />
-                <button
-                  onClick={submitFollowUp}
-                  disabled={!followDate || !followTime}
-                  className="w-full px-5 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                >
-                  Create & notify patient
-                </button>
+              <div>
+                <p className="font-semibold text-gray-900 mb-3">
+                  All follow-ups ({allFollowUpsSorted.length})
+                </p>
+                {allFollowUpsSorted.length === 0 ? (
+                  <div className="text-sm text-gray-600 p-4 border rounded-lg bg-white">No follow-ups scheduled yet.</div>
+                ) : (
+                  <div className="space-y-3">
+                    {allFollowUpsSorted.map((f) => {
+                      const isPast = f?.date && new Date(f.date) < now
+                      const isEditing = editingFollowUpId === f._id
+                      return (
+                        <div
+                          key={f._id}
+                          className={`p-4 rounded-xl border-2 shadow-sm ${
+                            isPast ? 'border-gray-200 bg-gray-50' : 'border-blue-200 bg-blue-50/40'
+                          }`}
+                        >
+                          {isEditing ? (
+                            <div className="space-y-2">
+                              <input
+                                type="date"
+                                ref={editFollowDateInputRef}
+                                min={minFollowUpDate}
+                                value={editingFollowDate}
+                                onChange={(e) => setEditingFollowDate(e.target.value)}
+                                className="no-native-picker-icon px-3 py-2 border rounded-lg w-full bg-white text-base"
+                              />
+                              <input
+                                type="time"
+                                ref={editFollowTimeInputRef}
+                                value={editingFollowTime}
+                                onChange={(e) => setEditingFollowTime(e.target.value)}
+                                className="no-native-picker-icon px-3 py-2 border rounded-lg w-full bg-white text-base"
+                              />
+                              <input
+                                value={editingFollowReason}
+                                onChange={(e) => setEditingFollowReason(e.target.value)}
+                                className="px-3 py-2 border rounded-lg w-full bg-white"
+                                placeholder="Reason"
+                              />
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => updateFollowUp(f._id)}
+                                  disabled={!editingFollowDate || !editingFollowTime}
+                                  className="px-3 py-1.5 text-xs rounded-lg bg-emerald-600 text-white disabled:opacity-50"
+                                >
+                                  Save
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={cancelEditingFollowUp}
+                                  className="px-3 py-1.5 text-xs rounded-lg border border-gray-300 text-gray-700 bg-white"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="flex justify-between items-start gap-3">
+                                <div>
+                                  <p className="text-lg font-extrabold text-gray-900">
+                                    {formatDate(f.date)} at {formatTime(f.timeSlot)}
+                                  </p>
+                                  <p className="text-sm text-gray-700 mt-1">
+                                    Reason: {f.reason || 'Follow-up'}
+                                  </p>
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    Dr. {user?.name || '—'} · {user?.specialty || 'Dermatology'}
+                                  </p>
+                                  {f.createdAt && (
+                                    <p className="text-xs text-gray-400 mt-0.5">
+                                      Scheduled {formatDateTime(f.createdAt)}
+                                    </p>
+                                  )}
+                                  {f.status === 'submitted' && (
+                                    <span className="inline-block mt-2 text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                                      Patient submitted
+                                    </span>
+                                  )}
+                                </div>
+                                <span className={`text-xs font-bold px-2 py-1 rounded-full shrink-0 ${
+                                  isPast ? 'bg-gray-200 text-gray-600' : 'bg-blue-100 text-blue-700'
+                                }`}>
+                                  {isPast ? 'Past' : 'Upcoming'}
+                                </span>
+                              </div>
+                              {!isCaseClosed && (
+                              <div className="mt-2 flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => startEditingFollowUp(f)}
+                                  className="px-3 py-1.5 text-xs rounded-lg border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => deleteFollowUp(f._id)}
+                                  className="px-3 py-1.5 text-xs rounded-lg border border-red-200 text-red-700 bg-red-50 hover:bg-red-100"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
+
+              {isCaseClosed ? null : (
+                <div className="p-4 border rounded-lg bg-white space-y-3">
+                  <p className="font-semibold text-gray-900">Create new follow-up</p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="date"
+                      ref={followDateInputRef}
+                      min={minFollowUpDate}
+                      value={followDate}
+                      onChange={(e) => setFollowDate(e.target.value)}
+                      className="no-native-picker-icon px-3 py-2 border rounded-lg w-full text-base"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        followDateInputRef.current?.focus()
+                        followDateInputRef.current?.showPicker?.()
+                      }}
+                      className="px-3 py-2 rounded-lg border border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
+                      aria-label="Open date picker"
+                    >
+                      <Calendar className="w-5 h-5" />
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="time"
+                      ref={followTimeInputRef}
+                      value={followTime}
+                      onChange={(e) => setFollowTime(e.target.value)}
+                      className="no-native-picker-icon px-3 py-2 border rounded-lg w-full text-base"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        followTimeInputRef.current?.focus()
+                        followTimeInputRef.current?.showPicker?.()
+                      }}
+                      className="px-3 py-2 rounded-lg border border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
+                      aria-label="Open time picker"
+                    >
+                      <Clock className="w-5 h-5" />
+                    </button>
+                  </div>
+                  <input
+                    value={followReason}
+                    onChange={(e) => setFollowReason(e.target.value)}
+                    className="px-3 py-2 border rounded-lg w-full"
+                    placeholder="Reason"
+                  />
+                  <button
+                    onClick={submitFollowUp}
+                    disabled={!followDate || !followTime}
+                    className="w-full px-5 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    Create & notify patient
+                  </button>
+                </div>
+              )}
             </div>
           )}
 

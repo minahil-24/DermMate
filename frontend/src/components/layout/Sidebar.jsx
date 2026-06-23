@@ -56,7 +56,7 @@ const Sidebar = () => {
     { to: '/patient/treatment', icon: ClipboardList, label: 'Treatment Plans' },
     { to: '/patient/follow-up', icon: Activity, label: 'Follow-ups' },
     { to: '/patient/dermatologists', icon: Search, label: 'Find Dermatologist' },
-    { to: '/patient/clinics', icon: Building2, label: 'Clinics' },
+    
     { to: '/patient/notifications', icon: Bell, label: 'Notifications' },
     { to: '/patient/profile', icon: User, label: 'Profile' },
   ]
@@ -76,7 +76,7 @@ const Sidebar = () => {
     { to: '/dashboard/admin', icon: LayoutDashboard, label: 'Dashboard' },
     { to: '/admin/users', icon: Users, label: 'User Management' },
     { to: '/admin/verification', icon: Stethoscope, label: 'Verification' },
-    { to: '/admin/ai-models', icon: Settings, label: 'AI Models' },
+ 
     { to: '/admin/reports', icon: FileText, label: 'Reports & Analytics' },
 
     { to: '/admin/notifications', icon: Send, label: 'Broadcast' },

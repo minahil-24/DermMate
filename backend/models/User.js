@@ -19,6 +19,16 @@ const certificationSchema = new mongoose.Schema(
   { _id: true }
 )
 
+const savedMedicalRecordSchema = new mongoose.Schema(
+  {
+    filePath: { type: String, required: true },
+    originalName: { type: String, default: '' },
+    title: { type: String, default: '' },
+    uploadedAt: { type: Date, default: Date.now },
+  },
+  { _id: true }
+)
+
 const userSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, unique: true, required: true },
@@ -75,6 +85,12 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  /** Admin can deactivate dermatologist accounts — read-only access to appointments */
+  isDeactivated: {
+    type: Boolean,
+    default: false
+  },
+  deactivatedAt: { type: Date, default: null },
   onboardingCompleted: {
     type: Boolean,
     default: false
@@ -90,6 +106,9 @@ const userSchema = new mongoose.Schema({
   processedSessions: { type: [String], default: [] },
   averageRating: { type: Number, default: 0 },
   totalReviews: { type: Number, default: 0 },
+
+  /** Patient-uploaded prior reports/labs saved for reuse across appointments */
+  savedMedicalRecords: { type: [savedMedicalRecordSchema], default: [] },
 
   // Auth Tokens
   verificationToken: String,

@@ -5,9 +5,24 @@ import { Calendar, Briefcase, Bell, TrendingUp, CheckCircle, Loader2 } from 'luc
 import axios from 'axios'
 import Card from '../../components/ui/Card'
 import Breadcrumbs from '../../components/common/Breadcrumbs'
-import { formatDate } from '../../utils/helpers'
+import { formatDate, formatTime } from '../../utils/helpers'
 import { useAuthStore } from '../../store/authStore'
 import { useToastStore } from '../../store/toastStore'
+
+const getVisitDateTime = (date, timeSlot) => {
+  if (!date) return null
+  const d = new Date(date)
+  if (Number.isNaN(d.getTime())) return null
+  if (timeSlot) {
+    const parts = String(timeSlot).trim().match(/^(\d{1,2}):(\d{2})/)
+    if (parts) {
+      d.setHours(parseInt(parts[1], 10), parseInt(parts[2], 10), 0, 0)
+    }
+  } else {
+    d.setHours(23, 59, 59, 999)
+  }
+  return d
+}
 
 const PatientDashboard = () => {
   const navigate = useNavigate()
@@ -78,14 +93,61 @@ const PatientDashboard = () => {
     [notifications]
   )
 
-  const upcomingAppointments = useMemo(() => {
+  const upcomingSchedule = useMemo(() => {
     const now = new Date()
-    return (cases || [])
-      .filter((c) => c.caseStatus !== 'draft')
-      .filter((c) => !c.isCancelledByPatient)
-      .filter((c) => c.appointmentDate && new Date(c.appointmentDate) >= now)
-      .sort((a, b) => new Date(a.appointmentDate) - new Date(b.appointmentDate))
+    const items = []
+
+    for (const c of cases || []) {
+      if (c.caseStatus === 'draft' || c.isCancelledByPatient) continue
+
+      if (c.appointmentDate) {
+        const sortAt = getVisitDateTime(c.appointmentDate, c.appointmentTimeSlot)
+        if (sortAt && sortAt >= now) {
+          items.push({
+            id: `apt-${c._id}`,
+            type: 'appointment',
+            date: c.appointmentDate,
+            timeSlot: c.appointmentTimeSlot,
+            doctorName: c.doctor?.name || 'Dermatologist',
+            reviewStatus: c.doctorReviewStatus,
+            complaintType: c.complaintType,
+            sortAt: sortAt.getTime(),
+          })
+        }
+      }
+
+      if (c.doctorReviewStatus === 'accepted') {
+        for (const f of c.followUps || []) {
+          if (!f?.date) continue
+          const sortAt = getVisitDateTime(f.date, f.timeSlot)
+          if (sortAt && sortAt >= now) {
+            items.push({
+              id: `fu-${f._id}`,
+              type: 'follow-up',
+              date: f.date,
+              timeSlot: f.timeSlot,
+              doctorName: c.doctor?.name || 'Dermatologist',
+              reason: f.reason || 'Follow-up',
+              status: f.status,
+              sortAt: sortAt.getTime(),
+            })
+          }
+        }
+      }
+    }
+
+    return items.sort((a, b) => a.sortAt - b.sortAt)
   }, [cases])
+
+  const upcomingAppointmentCount = useMemo(
+    () => upcomingSchedule.filter((i) => i.type === 'appointment').length,
+    [upcomingSchedule]
+  )
+
+  const upcomingFollowUpCount = useMemo(
+    () => upcomingSchedule.filter((i) => i.type === 'follow-up').length,
+    [upcomingSchedule]
+  )
 
   const activeCases = useMemo(() => {
     return (cases || []).filter((c) => !c.isCancelledByPatient && c.doctorReviewStatus === 'accepted')
@@ -113,10 +175,12 @@ const PatientDashboard = () => {
     },
     {
       label: 'Upcoming Appointments',
-      value: upcomingAppointments.length,
+      value: upcomingSchedule.length,
       icon: Calendar,
       color: 'bg-blue-500',
-      change: upcomingAppointments[0]?.appointmentDate ? `Next: ${formatDate(upcomingAppointments[0].appointmentDate)}` : 'No upcoming',
+      change: upcomingSchedule.length
+        ? `${upcomingAppointmentCount} appointment${upcomingAppointmentCount === 1 ? '' : 's'}, ${upcomingFollowUpCount} follow-up${upcomingFollowUpCount === 1 ? '' : 's'}`
+        : 'No upcoming visits',
     },
     {
       label: 'Unread Notifications',
@@ -216,40 +280,68 @@ const PatientDashboard = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Upcoming Appointments */}
+          {/* Upcoming Appointments & Follow-ups */}
           <Card className="lg:col-span-1">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold text-gray-900">Upcoming Appointments</h2>
-              <button onClick={() => navigate('/patient/appointments')} className="text-sm text-emerald-600 hover:text-emerald-700">
+              <button onClick={() => navigate('/patient/follow-up')} className="text-sm text-emerald-600 hover:text-emerald-700">
                 View all
               </button>
             </div>
             <div className="space-y-3">
-              {upcomingAppointments.slice(0, 3).map((apt) => (
+              {upcomingSchedule.map((item) => (
                 <div
-                  key={apt._id}
+                  key={item.id}
                   className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
                 >
-                  <div>
-                    <p className="font-medium text-gray-900">{apt.doctor?.name || 'Dermatologist'}</p>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-medium text-gray-900">{item.doctorName}</p>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                          item.type === 'follow-up'
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'bg-emerald-100 text-emerald-700'
+                        }`}
+                      >
+                        {item.type === 'follow-up' ? 'Follow-up' : 'Appointment'}
+                      </span>
+                    </div>
                     <p className="text-sm text-gray-600">
-                      {formatDate(apt.appointmentDate)} at {apt.appointmentTimeSlot || '—'}
+                      {formatDate(item.date)}
+                      {item.timeSlot ? ` at ${formatTime(item.timeSlot)}` : ''}
                     </p>
+                    {item.type === 'follow-up' && (
+                      <p className="text-xs text-gray-500 truncate">{item.reason}</p>
+                    )}
                   </div>
-                  <span
-                    className={`px-2 py-1 rounded-full text-xs font-medium ${apt.doctorReviewStatus === 'accepted'
-                        ? 'bg-emerald-100 text-emerald-700'
-                        : apt.doctorReviewStatus === 'rejected'
-                          ? 'bg-red-100 text-red-700'
-                          : 'bg-yellow-100 text-yellow-700'
+                  {item.type === 'appointment' ? (
+                    <span
+                      className={`px-2 py-1 rounded-full text-xs font-medium shrink-0 ${
+                        item.reviewStatus === 'accepted'
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : item.reviewStatus === 'rejected'
+                            ? 'bg-red-100 text-red-700'
+                            : 'bg-yellow-100 text-yellow-700'
                       }`}
-                  >
-                    {apt.isCancelledByPatient ? 'cancelled' : (apt.doctorReviewStatus || 'pending')}
-                  </span>
+                    >
+                      {item.reviewStatus || 'pending'}
+                    </span>
+                  ) : (
+                    <span
+                      className={`px-2 py-1 rounded-full text-xs font-medium shrink-0 ${
+                        item.status === 'submitted'
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'bg-blue-100 text-blue-700'
+                      }`}
+                    >
+                      {item.status === 'submitted' ? 'Submitted' : 'Scheduled'}
+                    </span>
+                  )}
                 </div>
               ))}
-              {upcomingAppointments.length === 0 && (
-                <p className="text-center text-gray-500 py-4">No upcoming appointments</p>
+              {upcomingSchedule.length === 0 && (
+                <p className="text-center text-gray-500 py-4">No upcoming appointments or follow-ups</p>
               )}
             </div>
           </Card>

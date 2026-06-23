@@ -22,3 +22,12 @@ Thumbs.db
 runs/
 __pycache__/
 *.pyc
+# Python virtual environment
+venv/
+.venv/
+**/venv/
+**/.venv/
+
+# YOLO
+runs/
+*.pt

@@ -6,12 +6,14 @@ const MedicalCase = require('../models/Case')
 const User = require('../models/User')
 const auth = require('../middleware/auth')
 const checkBlock = require('../middleware/checkBlock')
+const requireOpenCase = require('../middleware/requireOpenCase')
 const upload = require('../middleware/caseUpload')
 const doctorUpload = require('../middleware/caseDoctorUpload')
 const { notifyUser } = require('../utils/notify')
 const { stripAffectedAiForPatient, stripAffectedAiForPatientList } = require('../utils/caseSanitize')
 const { processHairAffectedUpload, buildAffectedImagesWithHairAnalysis } = require('../utils/yoloAlopecia')
 const { isDoctorSlotTaken, getDoctorBookedSlots } = require('../utils/appointmentSlots')
+const { generateFollowUpReport } = require('../utils/followUpPdfReport')
 
 const router = express.Router()
 const backendRoot = path.join(__dirname, '..')
@@ -42,6 +44,7 @@ function findBlockingCaseForPatientDoctor(cases, { excludeCaseId } = {}) {
   for (const c of cases) {
     if (excludeCaseId && String(c._id) === String(excludeCaseId)) continue
     if (c.isCancelledByPatient) continue
+    if (c.caseStatus === 'closed') continue
 
     const apt = startOfLocalDay(new Date(c.appointmentDate))
     if (apt < today) continue
@@ -347,7 +350,7 @@ router.delete('/draft/:caseId', auth(['patient']), async (req, res) => {
 router.get('/my', auth(['patient']), async (req, res) => {
   try {
     const list = await MedicalCase.find({ patient: req.user.id })
-      .populate('doctor', 'name specialty email profilePhoto')
+      .populate('doctor', 'name specialty email profilePhoto gender degree clinicName consultationFee')
       .sort({ createdAt: -1 })
       .lean()
     res.json(stripAffectedAiForPatientList(list))
@@ -438,7 +441,7 @@ router.get('/:caseId', auth(['patient', 'dermatologist']), async (req, res) => {
 })
 
 // Doctor upload (reports/comparisons attachments)
-router.post('/:caseId/doctor-upload', auth(['dermatologist']), checkBlock, doctorUpload.single('file'), async (req, res) => {
+router.post('/:caseId/doctor-upload', auth(['dermatologist']), checkBlock, requireOpenCase, doctorUpload.single('file'), async (req, res) => {
   try {
     const caseId = String(req.params.caseId || '').trim()
     if (!caseId || !mongoose.Types.ObjectId.isValid(caseId)) {
@@ -458,7 +461,7 @@ router.post('/:caseId/doctor-upload', auth(['dermatologist']), checkBlock, docto
   }
 })
 
-router.post('/:caseId/notes', auth(['dermatologist']), checkBlock, async (req, res) => {
+router.post('/:caseId/notes', auth(['dermatologist']), checkBlock, requireOpenCase, async (req, res) => {
   try {
     const { text } = req.body
     if (!text || !String(text).trim()) {
@@ -480,7 +483,7 @@ router.post('/:caseId/notes', auth(['dermatologist']), checkBlock, async (req, r
   }
 })
 
-router.patch('/:caseId/notes/:noteId', auth(['dermatologist']), checkBlock, async (req, res) => {
+router.patch('/:caseId/notes/:noteId', auth(['dermatologist']), checkBlock, requireOpenCase, async (req, res) => {
   try {
     const { text } = req.body || {}
     if (!text || !String(text).trim()) {
@@ -510,7 +513,7 @@ router.patch('/:caseId/notes/:noteId', auth(['dermatologist']), checkBlock, asyn
   }
 })
 
-router.delete('/:caseId/notes/:noteId', auth(['dermatologist']), checkBlock, async (req, res) => {
+router.delete('/:caseId/notes/:noteId', auth(['dermatologist']), checkBlock, requireOpenCase, async (req, res) => {
   try {
     const caseId = String(req.params.caseId || '').trim()
     const noteId = String(req.params.noteId || '').trim()
@@ -536,7 +539,7 @@ router.delete('/:caseId/notes/:noteId', auth(['dermatologist']), checkBlock, asy
 })
 
 // Compatibility aliases for clients/environments that cannot use PATCH/DELETE reliably.
-router.post('/:caseId/notes/:noteId/update', auth(['dermatologist']), checkBlock, async (req, res) => {
+router.post('/:caseId/notes/:noteId/update', auth(['dermatologist']), checkBlock, requireOpenCase, async (req, res) => {
   try {
     const { text } = req.body || {}
     if (!text || !String(text).trim()) {
@@ -566,7 +569,7 @@ router.post('/:caseId/notes/:noteId/update', auth(['dermatologist']), checkBlock
   }
 })
 
-router.post('/:caseId/notes/:noteId/delete', auth(['dermatologist']), checkBlock, async (req, res) => {
+router.post('/:caseId/notes/:noteId/delete', auth(['dermatologist']), checkBlock, requireOpenCase, async (req, res) => {
   try {
     const caseId = String(req.params.caseId || '').trim()
     const noteId = String(req.params.noteId || '').trim()
@@ -591,7 +594,7 @@ router.post('/:caseId/notes/:noteId/delete', auth(['dermatologist']), checkBlock
   }
 })
 
-router.post('/:caseId/reports', auth(['dermatologist']), checkBlock, async (req, res) => {
+router.post('/:caseId/reports', auth(['dermatologist']), checkBlock, requireOpenCase, async (req, res) => {
   try {
     const { title, description = '', filePath = '' } = req.body
     if (!title || !String(title).trim()) {
@@ -618,7 +621,7 @@ router.post('/:caseId/reports', auth(['dermatologist']), checkBlock, async (req,
   }
 })
 
-router.post('/:caseId/comparisons', auth(['dermatologist']), checkBlock, async (req, res) => {
+router.post('/:caseId/comparisons', auth(['dermatologist']), checkBlock, requireOpenCase, async (req, res) => {
   try {
     const { beforePath, afterPath } = req.body
     if (!beforePath || !afterPath) {
@@ -640,7 +643,7 @@ router.post('/:caseId/comparisons', auth(['dermatologist']), checkBlock, async (
   }
 })
 
-router.post('/:caseId/followups', auth(['dermatologist']), checkBlock, async (req, res) => {
+router.post('/:caseId/followups', auth(['dermatologist']), checkBlock, requireOpenCase, async (req, res) => {
   try {
     const { date, timeSlot, reason = 'Follow-up' } = req.body
     if (!date || !timeSlot) {
@@ -665,21 +668,21 @@ router.post('/:caseId/followups', auth(['dermatologist']), checkBlock, async (re
     try {
       await notifyUser(c.patient, {
         title: 'Follow-up scheduled',
-        message: `Your dermatologist scheduled a follow-up on ${new Date(date).toDateString()} at ${timeSlot}.`,
-        link: '/patient/appointments',
+        message: `Your dermatologist scheduled a follow-up on ${new Date(date).toDateString()} at ${timeSlot}. Please upload an affected area photo in Follow-ups.`,
+        link: '/patient/follow-up',
         type: 'followup_scheduled',
       })
     } catch (e) {
       console.error('notify followup:', e)
     }
 
-    res.json({ message: 'Follow-up scheduled' })
+    res.json({ message: 'Follow-up scheduled', followUp: c.followUps[0] })
   } catch (error) {
     res.status(500).json({ message: error.message })
   }
 })
 
-router.patch('/:caseId/followups/:followUpId', auth(['dermatologist']), checkBlock, async (req, res) => {
+router.patch('/:caseId/followups/:followUpId', auth(['dermatologist']), checkBlock, requireOpenCase, async (req, res) => {
   try {
     const { date, timeSlot, reason = 'Follow-up' } = req.body || {}
     if (!date || !timeSlot) {
@@ -712,7 +715,7 @@ router.patch('/:caseId/followups/:followUpId', auth(['dermatologist']), checkBlo
   }
 })
 
-router.delete('/:caseId/followups/:followUpId', auth(['dermatologist']), checkBlock, async (req, res) => {
+router.delete('/:caseId/followups/:followUpId', auth(['dermatologist']), checkBlock, requireOpenCase, async (req, res) => {
   try {
     const caseId = String(req.params.caseId || '').trim()
     const followUpId = String(req.params.followUpId || '').trim()
@@ -737,7 +740,100 @@ router.delete('/:caseId/followups/:followUpId', auth(['dermatologist']), checkBl
   }
 })
 
-router.patch('/:caseId/status/start', auth(['dermatologist']), checkBlock, async (req, res) => {
+router.post(
+  '/:caseId/followups/:followUpId/submit',
+  auth(['patient']),
+  (req, _res, next) => {
+    req.query.type = 'followup'
+    next()
+  },
+  upload.single('file'),
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: 'Affected area image is required' })
+      }
+      if (!req.file.mimetype.startsWith('image/')) {
+        return res.status(400).json({ message: 'Only image files are allowed for follow-up submission' })
+      }
+
+      const caseId = String(req.params.caseId || '').trim()
+      const followUpId = String(req.params.followUpId || '').trim()
+      if (!caseId || !mongoose.Types.ObjectId.isValid(caseId) || !followUpId || !mongoose.Types.ObjectId.isValid(followUpId)) {
+        return res.status(400).json({ message: 'Invalid case id or follow-up id' })
+      }
+
+      const c = await MedicalCase.findById(caseId)
+      if (!c) return res.status(404).json({ message: 'Case not found' })
+      if (String(c.patient) !== String(req.user.id)) {
+        return res.status(403).json({ message: 'Not authorized for this case' })
+      }
+
+      const follow = (c.followUps || []).id(followUpId)
+      if (!follow) return res.status(404).json({ message: 'Follow-up not found' })
+
+      const filePath = relPath(req.file.path)
+      const submittedAt = new Date()
+
+      follow.patientImage = {
+        filePath,
+        originalName: req.file.originalname || '',
+        uploadedAt: submittedAt,
+      }
+      follow.status = 'submitted'
+      follow.submittedAt = submittedAt
+
+      const populated = await MedicalCase.findById(caseId)
+        .populate('patient', 'name email phoneNumber location age gender')
+        .populate('doctor', 'name email specialty degree')
+        .lean()
+
+      const followPlain = (populated.followUps || []).find((f) => String(f._id) === followUpId)
+      if (!followPlain) {
+        return res.status(500).json({ message: 'Could not load follow-up for report generation' })
+      }
+
+      const pdfReportPath = await generateFollowUpReport({
+        caseDoc: populated,
+        followUp: followPlain,
+        patient: populated.patient,
+        doctor: populated.doctor,
+        submittedAt,
+      })
+
+      follow.pdfReportPath = pdfReportPath
+      await c.save()
+
+      try {
+        await notifyUser(c.doctor, {
+          title: 'Follow-up submitted',
+          message: `${populated.patient?.name || 'A patient'} submitted a follow-up report with an affected area photo.`,
+          link: `/dermatologist/cases/${caseId}`,
+          type: 'followup_submitted',
+        })
+      } catch (e) {
+        console.error('notify followup submit:', e)
+      }
+
+      res.json({
+        success: true,
+        message: 'Follow-up submitted and PDF report generated',
+        pdfReportPath,
+        followUp: {
+          _id: follow._id,
+          status: follow.status,
+          submittedAt: follow.submittedAt,
+          pdfReportPath: follow.pdfReportPath,
+          patientImage: follow.patientImage,
+        },
+      })
+    } catch (error) {
+      res.status(500).json({ message: error.message })
+    }
+  }
+)
+
+router.patch('/:caseId/status/start', auth(['dermatologist']), checkBlock, requireOpenCase, async (req, res) => {
   try {
     const caseId = String(req.params.caseId || '').trim()
     if (!caseId || !mongoose.Types.ObjectId.isValid(caseId)) {
@@ -840,7 +936,52 @@ router.patch('/:caseId/status/close', auth(['dermatologist']), checkBlock, async
   }
 })
 
-router.patch('/:caseId/progress', auth(['dermatologist']), checkBlock, async (req, res) => {
+router.patch('/:caseId/status/restart', auth(['dermatologist']), checkBlock, async (req, res) => {
+  try {
+    const caseId = String(req.params.caseId || '').trim()
+    if (!caseId || !mongoose.Types.ObjectId.isValid(caseId)) {
+      return res.status(400).json({ message: 'Invalid case id' })
+    }
+
+    const c = await MedicalCase.findById(caseId)
+    if (!c) return res.status(404).json({ message: 'Case not found' })
+    if (String(c.doctor) !== String(req.user.id)) {
+      return res.status(403).json({ message: 'Not authorized for this case' })
+    }
+    if (c.isCancelledByPatient) {
+      return res.status(400).json({ message: 'Case was cancelled by patient' })
+    }
+    if (c.caseStatus !== 'closed') {
+      return res.status(400).json({ message: 'Only closed cases can be restarted' })
+    }
+
+    c.caseStatus = 'started'
+    c.closure = {
+      reason: '',
+      note: '',
+      closedAt: null,
+      closedBy: null,
+    }
+    await c.save()
+
+    try {
+      await notifyUser(c.patient, {
+        title: 'Case reopened',
+        message: 'Your dermatologist has restarted your case. Treatment and follow-up can continue.',
+        link: '/patient/cases',
+        type: 'case_restarted',
+      })
+    } catch (e) {
+      console.error('notify case restart:', e)
+    }
+
+    res.json({ message: 'Case restarted', caseStatus: c.caseStatus })
+  } catch (error) {
+    res.status(500).json({ message: error.message })
+  }
+})
+
+router.patch('/:caseId/progress', auth(['dermatologist']), checkBlock, requireOpenCase, async (req, res) => {
   try {
     const { progress } = req.body
     if (progress === undefined) return res.status(400).json({ message: 'Progress is required' })
@@ -871,7 +1012,7 @@ router.patch('/:caseId/progress', auth(['dermatologist']), checkBlock, async (re
   }
 })
 
-router.put('/:caseId/treatment-plan', auth(['dermatologist']), checkBlock, async (req, res) => {
+router.put('/:caseId/treatment-plan', auth(['dermatologist']), checkBlock, requireOpenCase, async (req, res) => {
   try {
     const { name = '', medications = [], lifestyle = [], notes = '', progress } = req.body || {}
 
@@ -1026,8 +1167,8 @@ async function patchDoctorReview(req, res) {
 }
 
 // Prefer /review/:caseId (clearer; avoids param ordering issues). Legacy: /:caseId/review
-router.patch('/review/:caseId', auth(['dermatologist']), checkBlock, patchDoctorReview)
-router.patch('/:caseId/review', auth(['dermatologist']), checkBlock, patchDoctorReview)
+router.patch('/review/:caseId', auth(['dermatologist']), checkBlock, requireOpenCase, patchDoctorReview)
+router.patch('/:caseId/review', auth(['dermatologist']), checkBlock, requireOpenCase, patchDoctorReview)
 
 router.patch('/:caseId/cancel', auth(['patient']), async (req, res) => {
   try {

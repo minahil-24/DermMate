@@ -1,5 +1,57 @@
 /** Booking + standalone questionnaire steps by complaint (skin / hair / nails). */
 
+const SKIN_BODY_AREAS = [
+  'Face',
+  'Scalp',
+  'Neck',
+  'Chest',
+  'Upper back',
+  'Lower back',
+  'Abdomen',
+  'Upper arms',
+  'Forearms',
+  'Hands',
+  'Groin',
+  'Buttocks',
+  'Thighs',
+  'Knees',
+  'Lower legs',
+  'Feet',
+  'Multiple areas',
+]
+
+const HAIR_SCALP_AREAS = [
+  'Crown (top / vertex)',
+  'Frontal hairline',
+  'Temples (sides)',
+  'Diffuse thinning (all over)',
+  'Patchy / bald spots',
+  'Occipital (back of head)',
+  'Beard / facial hair',
+  'Eyebrows',
+  'Multiple areas',
+]
+
+const NAIL_AREAS = [
+  'Right thumb',
+  'Right index finger',
+  'Right middle finger',
+  'Right ring finger',
+  'Right little finger',
+  'Left thumb',
+  'Left index finger',
+  'Left middle finger',
+  'Left ring finger',
+  'Left little finger',
+  'Right big toe',
+  'Right other toes',
+  'Left big toe',
+  'Left other toes',
+  'All fingernails',
+  'All toenails',
+  'Multiple nails',
+]
+
 const sharedSteps = (labels) => [
   {
     title: labels.step1Title,
@@ -16,7 +68,12 @@ const sharedSteps = (labels) => [
         type: 'select',
         options: ['Mild', 'Moderate', 'Severe'],
       },
-      { name: 'location', label: labels.location, type: 'text' },
+      {
+        name: 'location',
+        label: labels.location,
+        type: 'select',
+        options: labels.locationOptions,
+      },
     ],
   },
   {
@@ -60,7 +117,8 @@ const LABELS = {
     step1Title: 'Skin — basic information',
     duration: 'How long have you had this skin concern?',
     severity: 'Severity of skin symptoms?',
-    location: 'Body area(s) affected (e.g. face, arms)',
+    location: 'Body area affected',
+    locationOptions: SKIN_BODY_AREAS,
     step2Title: 'Skin — history',
     familyHistory: 'Family history of skin conditions?',
     previousTreatment: 'Previous dermatology treatment?',
@@ -78,7 +136,8 @@ const LABELS = {
     step1Title: 'Hair & scalp — basic information',
     duration: 'How long have you noticed hair/scalp changes?',
     severity: 'How severe is shedding or thinning?',
-    location: 'Area (crown, hairline, diffuse, patchy)',
+    location: 'Scalp / hair area affected',
+    locationOptions: HAIR_SCALP_AREAS,
     step2Title: 'Hair — history',
     familyHistory: 'Family history of hair loss?',
     previousTreatment: 'Treatments tried (minoxidil, PRP, etc.)?',
@@ -96,7 +155,8 @@ const LABELS = {
     step1Title: 'Nails — basic information',
     duration: 'How long have nail changes been present?',
     severity: 'Severity (pain, thickness, discoloration)',
-    location: 'Which nail(s) — hand / foot',
+    location: 'Nail(s) affected',
+    locationOptions: NAIL_AREAS,
     step2Title: 'Nails — history',
     familyHistory: 'Family history of nail or psoriasis conditions?',
     previousTreatment: 'Previous nail treatments or antifungals?',

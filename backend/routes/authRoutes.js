@@ -476,7 +476,7 @@ router.get('/stats', auth(['admin']), async (req, res) => {
 // ----------------------
 router.get('/doctors', async (req, res) => {
   try {
-    const doctors = await User.find({ role: 'dermatologist' })
+    const doctors = await User.find({ role: 'dermatologist', isDeactivated: { $ne: true } })
       .select('-password')
       .sort({ name: 1 })
       .lean();
@@ -531,12 +531,57 @@ router.post('/verify-email', async (req, res) => {
 // ... omitting forgot-password and reset-password for brevity unless needed
 
 // ----------------------
-// DELETE USER (ADMIN ONLY)
+// DEACTIVATE / REACTIVATE DERMATOLOGIST (ADMIN ONLY)
+// ----------------------
+router.patch('/users/:id/deactivate', auth(['admin']), async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    if (user.role !== 'dermatologist') {
+      return res.status(400).json({ message: 'Only dermatologist accounts can be deactivated' });
+    }
+    user.isDeactivated = true;
+    user.deactivatedAt = new Date();
+    await user.save();
+    const userObj = user.toObject();
+    delete userObj.password;
+    res.json({ message: 'Dermatologist deactivated', user: userObj });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+router.patch('/users/:id/reactivate', auth(['admin']), async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    if (user.role !== 'dermatologist') {
+      return res.status(400).json({ message: 'Only dermatologist accounts can be reactivated' });
+    }
+    user.isDeactivated = false;
+    user.deactivatedAt = null;
+    await user.save();
+    const userObj = user.toObject();
+    delete userObj.password;
+    res.json({ message: 'Dermatologist reactivated', user: userObj });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// ----------------------
+// DELETE USER (ADMIN ONLY) — patients only; use deactivate for dermatologists
 // ----------------------
 router.delete('/users/:id', auth(['admin']), async (req, res) => {
   try {
-    const user = await User.findByIdAndDelete(req.params.id);
+    const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
+    if (user.role === 'dermatologist') {
+      return res.status(400).json({
+        message: 'Dermatologists cannot be deleted. Use deactivate instead.',
+      });
+    }
+    await User.findByIdAndDelete(req.params.id);
     res.json({ message: 'User deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });

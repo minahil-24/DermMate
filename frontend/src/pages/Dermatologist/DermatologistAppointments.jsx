@@ -21,6 +21,7 @@ import { formatDate, formatTime } from '../../utils/helpers'
 import { useToastStore } from '../../store/toastStore'
 import { useAuthStore } from '../../store/authStore'
 import EmptyState from '../../components/common/EmptyState'
+import DeactivatedAccountBanner from '../../components/common/DeactivatedAccountBanner'
 import AlopeciaAiDoctorPanel from '../../components/doctor/AlopeciaAiDoctorPanel'
 
 function fileUrl(apiUrl, filePath) {
@@ -55,7 +56,8 @@ function formatQuestionnaire(q) {
 
 const DermatologistAppointments = () => {
   const addToast = useToastStore((state) => state.addToast)
-  const { token } = useAuthStore()
+  const { token, user, updateUser } = useAuthStore()
+  const isDeactivated = user?.isDeactivated === true
   const [selectedCase, setSelectedCase] = useState(null)
   const [cases, setCases] = useState([])
   const [loading, setLoading] = useState(true)
@@ -68,6 +70,10 @@ const DermatologistAppointments = () => {
     if (!token) return
     try {
       setLoading(true)
+      const meRes = await axios.get(`${apiUrl}/api/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      updateUser(meRes.data)
       const res = await axios.get(`${apiUrl}/api/cases/doctor/incoming`, {
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -85,7 +91,7 @@ const DermatologistAppointments = () => {
     } finally {
       setLoading(false)
     }
-  }, [token, apiUrl, addToast])
+  }, [token, apiUrl, addToast, updateUser])
 
   useEffect(() => {
     load()
@@ -161,6 +167,8 @@ const DermatologistAppointments = () => {
           notified automatically.
         </p>
       </div>
+
+      {isDeactivated && <DeactivatedAccountBanner />}
 
       {loading ? (
         <div className="flex justify-center py-20">
@@ -379,7 +387,7 @@ const DermatologistAppointments = () => {
             )}
 
             <div className="flex flex-wrap justify-end gap-3 mt-6 pt-4 border-t border-gray-100">
-              {canDecide(selectedCase) && (
+              {canDecide(selectedCase) && !isDeactivated && (
                 <>
                   <Button
                     disabled={actionLoading}
@@ -399,7 +407,7 @@ const DermatologistAppointments = () => {
                   </Button>
                 </>
               )}
-              {!canDecide(selectedCase) && canDeclineAcceptedWithin24h(selectedCase) && (
+              {!canDecide(selectedCase) && canDeclineAcceptedWithin24h(selectedCase) && !isDeactivated && (
                 <Button
                   disabled={actionLoading}
                   className="flex items-center gap-1 bg-red-600 hover:bg-red-700 text-white rounded-md shadow-md"
