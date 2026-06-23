@@ -442,10 +442,6 @@ const PatientChat = () => {
   }
 
   const closeCase = async () => {
-    if (!hasAppointmentStarted) {
-      addToast({ type: 'error', title: 'Cannot Close Case', message: 'Case can be closed on or after appointment date.' })
-      return
-    }
     if ((caze?.followUps || []).length > 0) {
       addToast({ type: 'error', title: 'Cannot Close Case', message: 'Delete follow-up appointments before closing this case.' })
       return
@@ -535,23 +531,6 @@ const PatientChat = () => {
     const day = String(d.getDate()).padStart(2, '0')
     return `${y}-${m}-${day}`
   }, [])
-  const hasAppointmentStarted = useMemo(() => {
-    if (!caze?.appointmentDate) return false
-    const today = new Date()
-    const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate())
-    const appt = new Date(caze.appointmentDate)
-    const apptOnly = new Date(appt.getFullYear(), appt.getMonth(), appt.getDate())
-    return apptOnly <= todayOnly
-  }, [caze?.appointmentDate])
-  const isAppointmentDay = useMemo(() => {
-    if (!caze?.appointmentDate) return false
-    const today = new Date()
-    const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate())
-    const appt = new Date(caze.appointmentDate)
-    const apptOnly = new Date(appt.getFullYear(), appt.getMonth(), appt.getDate())
-    return apptOnly.getTime() === todayOnly.getTime()
-  }, [caze?.appointmentDate])
-
   return (
     <div className="w-full h-full flex flex-col">
       {isDeactivated && (
@@ -597,9 +576,7 @@ const PatientChat = () => {
               <button
                 type="button"
                 onClick={startCase}
-                disabled={!isAppointmentDay}
-                className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                title={!isAppointmentDay ? 'Case can only be started on appointment date' : ''}
+                className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700"
               >
                 Start Case
               </button>
@@ -617,14 +594,11 @@ const PatientChat = () => {
               <button
                 type="button"
                 onClick={() => setShowClosePanel((v) => !v)}
-                disabled={!hasAppointmentStarted}
-                className="px-3 py-1.5 rounded-lg text-sm font-semibold border border-red-200 text-red-700 bg-red-50 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-3 py-1.5 rounded-lg text-sm font-semibold border border-red-200 text-red-700 bg-red-50 hover:bg-red-100"
                 title={
                   (caze?.followUps || []).length > 0
                     ? 'Remove follow-up appointments to close this case'
-                    : !hasAppointmentStarted
-                      ? 'Case can be closed on or after appointment date'
-                      : ''
+                    : ''
                 }
               >
                 Close Case

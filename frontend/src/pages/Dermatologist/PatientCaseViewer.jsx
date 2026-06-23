@@ -48,15 +48,6 @@ const PatientCaseViewer = () => {
       .sort((a, b) => new Date(a.appointmentDate) - new Date(b.appointmentDate))
   }, [cases])
 
-  const isAppointmentDay = (appointmentDate) => {
-    if (!appointmentDate) return false
-    const today = new Date()
-    const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate())
-    const appt = new Date(appointmentDate)
-    const apptOnly = new Date(appt.getFullYear(), appt.getMonth(), appt.getDate())
-    return apptOnly.getTime() === todayOnly.getTime()
-  }
-
   const canDeclineWithin24h = (c) => {
     if (!c || c.isCancelledByPatient) return false
     if (c.doctorReviewStatus !== 'accepted') return false
@@ -213,9 +204,7 @@ const PatientCaseViewer = () => {
                       <button
                         type="button"
                         onClick={(e) => startCase(e, c._id)}
-                        disabled={!isAppointmentDay(c.appointmentDate)}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                        title={!isAppointmentDay(c.appointmentDate) ? 'Case can only be started on appointment date' : ''}
+                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700"
                       >
                         Start Case
                       </button>

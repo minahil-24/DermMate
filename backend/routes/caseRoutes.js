@@ -851,11 +851,6 @@ router.patch('/:caseId/status/start', auth(['dermatologist']), checkBlock, requi
     if (c.doctorReviewStatus !== 'accepted') {
       return res.status(400).json({ message: 'Only accepted cases can be started' })
     }
-    const today = startOfLocalDay(new Date())
-    const appointmentDay = startOfLocalDay(new Date(c.appointmentDate))
-    if (appointmentDay.getTime() !== today.getTime()) {
-      return res.status(400).json({ message: 'Case can only be started on the appointment date' })
-    }
 
     c.caseStatus = 'started'
     if (c.closure) {
@@ -895,12 +890,6 @@ router.patch('/:caseId/status/close', auth(['dermatologist']), checkBlock, async
 
     if ((c.followUps || []).length > 0) {
       return res.status(400).json({ message: 'Cannot close case while follow-up appointments exist' })
-    }
-
-    const today = startOfLocalDay(new Date())
-    const appointmentDay = startOfLocalDay(new Date(c.appointmentDate))
-    if (appointmentDay > today) {
-      return res.status(400).json({ message: 'Case can be closed on or after the appointment date' })
     }
 
     c.caseStatus = 'closed'
